@@ -20,7 +20,8 @@ commons-daemon
 commons-dbcp
 commons-dbutils
 commons-digester
-felix,httpcomponents-client
+felix
+httpcomponents-client
 httpcomponents-core
 commons-jxpath
 commons-net
@@ -28,4 +29,5 @@ commons-ognl
 santuario
 mina-sshd
 commons-validator
-commons-vfs,zookeeper
+commons-vfs
+zookeeper
