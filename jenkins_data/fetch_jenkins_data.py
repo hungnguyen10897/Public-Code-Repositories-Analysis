@@ -33,6 +33,9 @@ def get_build_data(builds):
         build_actions = build_data['actions']
     
         for action in build_actions:
+            if not action:
+                continue
+
             if action['_class'].split('.')[-1] == 'TestResultAction':
                 fail_count = action['failCount']
                 skip_count = action['skipCount']
@@ -69,14 +72,23 @@ def get_build_data(builds):
     return builds_data
 
 
+def get_test_data():
+    pass
+
+def write_to_csv(project_info):
+    pass
+
 def process_project(project, server):
 
     regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
 
-    # depth = 2 extracts some more info
+    # depth = 2 to extract some more info to avoid querying the server many times
     jobs_info = server.get_job_info_regex(regex, folder_depth=0, depth=2)
 
+    project_info = {}
+
     for job_info in jobs_info:
+
         class_ = job_info['_class'].split('.')[-1]
         fullName = job_info['fullName']
 
@@ -89,12 +101,17 @@ def process_project(project, server):
 
         if class_ in ['Folder', 'Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
             # There should be a "jobs" field containing more jobs:
+            # drill again using server.get_job_info(name, depth=2)
+            # rather than doing regex again
             pass
 
         else:
             builds_data = get_build_data(job_info['builds'])
-
-
+            test_data = get_test_data()
+    
+        project_info[fullName] = (builds_data, test_data)
+    
+    write_to_csv(project_info)
 
 if __name__ == "__main__":
 
