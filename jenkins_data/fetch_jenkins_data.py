@@ -78,7 +78,7 @@ def get_test_data():
 def write_to_csv(project_info):
     pass
 
-def process_project(project, server):
+def process_project(project, server, sub_project=False):
 
     regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
 
@@ -92,20 +92,30 @@ def process_project(project, server):
         class_ = job_info['_class'].split('.')[-1]
         fullName = job_info['fullName']
 
-        git_url = job_info['scm']['userRemoteConfigs'][0]['url']
-        git_project_name = git_url.split('/')[-1].split('.')[0].strip()
-
-        # Check git source project
-        if git_project_name.lower() != project.lower():
-            continue
-
         if class_ in ['Folder', 'Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
             # There should be a "jobs" field containing more jobs:
             # drill again using server.get_job_info(name, depth=2)
             # rather than doing regex again
+
+            # process_project(server, job_info['jobs'], True)
             pass
 
         else:
+            # 'scm' field is only available for these types of classes:
+
+            if 'scm' in job_info and '_class' in job_info['scm']:
+
+                scm_class = job_info['scm']
+                if scm_class.split('.')[-1] in ['SubversionSCM','NullSCM']:
+                    continue
+
+                # # Checking git source project
+                # # Not taking into account MultiSCMs class
+                # git_url = job_info['scm']['userRemoteConfigs'][0]['url']
+                # git_project_name = git_url.split('/')[-1].split('.')[0].strip()
+                # if git_project_name.lower() != project.lower():
+                #     continue
+
             builds_data = get_build_data(job_info['builds'])
             test_data = get_test_data()
     
