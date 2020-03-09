@@ -11,28 +11,51 @@ def get_projects(path):
 
     return projects
 
-def get_build_data(builds):
+def extract_test_data(test_report):
+
+    if not test_report:
+        return None
+
+    total_test_duration = test_report['duration']
+
+    # Not readily available
+    build_data['total_test_duration'] = total_test_duration
+
+    # Get test specific data.
+    test_cases_result = []
+
+    #Each suite test a class
+    for suite in test_report['suites']:
+
+        class_structure = suite['name']
+        package = ".".join(class_structure[:-1])
+        class_ = class_structure[-1]
+
+        # Each case tests something different in a class
+        for case in suite['cases']:
+        
+            test_cases_result.append([package, class_,case['name'],\
+            case['duration'], case['status']])
     
-    builds_data = []
+    return (total_test_duration, test_cases_result)
 
-    for build_data in builds:
+def get_data(builds , server):
+    
+    builds_tests_data = []
 
-        result = {}
+    for build in builds:
 
-        result['build_number'] = build_data['id']
-        result['build_result'] = build_data['result']
-        result['build_duration'] = build_data['duration']
-        result['build_estimated_duration'] = build_data['estimatedDuration']
+        build_data = {}
 
-        fail_count = None
-        skip_count = None
-        total_count = None
+        build_data['build_number'] = build['id']
+        build_data['build_result'] = build['build_data']
+        build_data['build_duration'] = build['duration']
+        build_data['build_estimated_duration'] = build['estimatedDuration']
 
+        # Get revision number
         revision_number = None
 
-        build_actions = build_data['actions']
-    
-        for action in build_actions:
+        for action in build['actions']:
             if not action:
                 continue
 
@@ -46,10 +69,12 @@ def get_build_data(builds):
                     if 'SHA1' in action['lastBuiltRevision']:
                         revision_number = action['lastBuiltRevision']['SHA1']
 
-        # Info about commits
+        build_data['build_revision_number'] = revision_number
+
+        # Get info about commit
         commit_ids_ts = {}
 
-        changeset_items = build_data['changeSet']['items']
+        changeset_items = build['changeSet']['items']
         for item in changeset_items:
             if 'commitId' in item:
                 if 'date' in item:
@@ -59,31 +84,66 @@ def get_build_data(builds):
 
         if len(commit_ids_ts) != 1:
             print(f"WARNING: {len(commit_ids_ts)} commits ids found for the build \
-                {build_data['fullDisplayName']}")
+                {build['fullDisplayName']}")
 
-        result['test_fail_count'] = fail_count
-        result['test_skip_count'] = skip_count
-        result['test_total_count'] = total_count
-        result['build_revision_number'] = revision_number
-        result['build_commit_ids_ts'] = commit_ids_ts
+        build_data['build_commit_ids_ts'] = commit_ids_ts
 
-        builds_data.append(result)
+        # Get general test data:
+        total_test_duration = None
 
-    return builds_data
+        job_name = build['fullDisplayName'].split('#')[0].strip()
+        test_report = server.get_build_test_report(job_name , int(build_data['build_number']), depth=0)
 
+        if not test_report:
+            build_data['failCount'] = None
+            build_data['passCount'] = None
+            build_data['skipCount'] = None
+            build_data['totalTestDuration'] = None
 
-def get_test_data():
-    pass
+            builds_tests_data.append((build_data, None))
+            continue
+
+        build_data['failCount'] = test_report['failCount']
+        build_data['passCount'] = test_report['passCount']
+        build_data['skipCount'] = test_report['skipCount']
+
+        # Get specific test data:
+        total_test_duration = 0
+        test_results = []
+        test_report_class = test_report['_class'].split('.')[-1]
+        if test_report_class == "SurefireAggregatedReport":
+
+            for child_report in test_report['childReports']:
+                duration, test_result = extract_test_data(child_report['build_data'])
+                if duration is not None:
+                    total_test_duration += duration
+                if test_result is not None:
+                    test_results = test_results + test_result
+
+        elif test_report_class == "TestResult":
+            test_duration, test_results = extract_test_data(child_report['build_data'])
+
+        else:
+            print(f"WARNING: Unrecognized test report class for {job_name} {build_data['build_number']}")
+
+        build_data['totalTestDuration'] = total_test_duration
+        
+        builds_tests_data.append(build_data)
+
+    return builds_tests_data
 
 def write_to_csv(project_info):
     pass
 
 def process_project(project, server, sub_project=False):
 
-    regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
+    if sub_project:
+        jobs_info = [server.get_job_info(project, depth=2)]
+    else:
+        regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
 
-    # depth = 2 to extract some more info to avoid querying the server many times
-    jobs_info = server.get_job_info_regex(regex, folder_depth=0, depth=2)
+        # depth = 2 to extract some more info to avoid querying the server many times
+        jobs_info = server.get_job_info_regex(regex, folder_depth=0, depth=2)
 
     project_info = {}
 
@@ -92,7 +152,7 @@ def process_project(project, server, sub_project=False):
         class_ = job_info['_class'].split('.')[-1]
         fullName = job_info['fullName']
 
-        if class_ in ['Folder', 'Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
+        if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
             # There should be a "jobs" field containing more jobs:
             # drill again using server.get_job_info(name, depth=2)
             # rather than doing regex again
@@ -102,26 +162,17 @@ def process_project(project, server, sub_project=False):
 
         else:
             # 'scm' field is only available for these types of classes:
-
             if 'scm' in job_info and '_class' in job_info['scm']:
 
-                scm_class = job_info['scm']
+                scm_class = job_info['scm']['_class']
                 if scm_class.split('.')[-1] in ['SubversionSCM','NullSCM']:
                     continue
 
-                # # Checking git source project
-                # # Not taking into account MultiSCMs class
-                # git_url = job_info['scm']['userRemoteConfigs'][0]['url']
-                # git_project_name = git_url.split('/')[-1].split('.')[0].strip()
-                # if git_project_name.lower() != project.lower():
-                #     continue
-
-            builds_data = get_build_data(job_info['builds'])
-            test_data = get_test_data()
+            builds_data = get_data(job_info['builds'], server)
     
-        project_info[fullName] = (builds_data, test_data)
+        #project_info[fullName] = (builds_data, test_data)
     
-    write_to_csv(project_info)
+    #write_to_csv(project_info)
 
 if __name__ == "__main__":
 
