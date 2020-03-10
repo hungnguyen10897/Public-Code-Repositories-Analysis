@@ -138,53 +138,66 @@ def write_to_csv(jobs_data):
 
     return
 
-def get_jobs_info(project, server, first_load, sub_project):
+def get_jobs_info(project, server, first_load, sub_project=False):
 
     jobs_info = []
+    
+    if not sub_project:
+        regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
 
-    regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
+    if sub_project:
+        return [server.get_job_info(project, depth= 2, fetch_all_builds = first_load)]
 
+    # Not a sub_project
     if first_load:
         # Only serve to extract the job name since this method is unable to extract all builds.
         # Use: server.get_job_info(JOB_NAME, DEPTH, fetch_all_builds=True)
         jobs_info_regex = server.get_job_info_regex(regex, folder_depth=0, depth=0)
 
         for job_info in jobs_info_regex:
-            jobs_info.append(server.get_job_info(job_info['fullName'], depth= 2, fetch_all_builds = True))
+
+            class_ = job_info['_class'].split('.')[-1]
+            if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
+                for sub_job in job_info['jobs']:
+                    fullName = sub_job['fullName']
+                    jobs_info += get_jobs_info(fullName, server, True, True)
+            else:
+                jobs_info.append(server.get_job_info(job_info['fullName'], depth= 2, fetch_all_builds = True))
 
     else:
         # depth = 2 to extract some more info to avoid querying the server many times
-        jobs_info = server.get_job_info_regex(regex, folder_depth=0, depth=2)
+        for job_info in server.get_job_info_regex(regex, folder_depth=0, depth=2):
+
+            class_ = job_info['_class'].split('.')[-1]
+            if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
+                # There should be a "jobs" field containing more jobs:
+                # drill again using server.get_job_info(name, depth=2)
+                # rather than doing regex again
+                for sub_job in job_info['jobs']:
+                    fullName = sub_job['fullName']
+                    jobs_info += get_jobs_info(fullName, server, False, True)
+                
+            else:
+                jobs_info.append(job_info)
 
     return jobs_info
 
-def process_project(project, server, first_load=False, sub_project=False):
+def process_project(project, server, first_load=False):
 
     jobs_data = {}
 
-    for job_info in get_jobs_info(project, server, first_load, sub_project):
+    for job_info in get_jobs_info(project, server, first_load):
 
-        class_ = job_info['_class'].split('.')[-1]
         fullName = job_info['fullName']
 
-        if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
-            # There should be a "jobs" field containing more jobs:
-            # drill again using server.get_job_info(name, depth=2)
-            # rather than doing regex again
+        # 'scm' field checking
+        if 'scm' in job_info and '_class' in job_info['scm']:
+            scm_class = job_info['scm']['_class'].split('.')[-1]
+            if scm_class in ['SubversionSCM','NullSCM']:
+                continue
 
-            # process_project(server, job_info['jobs'], True)
-            pass
-
-        else:
-            # 'scm' field is only available for these types of classes:
-            if 'scm' in job_info and '_class' in job_info['scm']:
-
-                scm_class = job_info['scm']['_class']
-                if scm_class.split('.')[-1] in ['SubversionSCM','NullSCM']:
-                    continue
-
-            # job_data contains both build and test data
-            job_data = get_data(job_info['builds'], server)
+        # job_data contains both build and test data
+        job_data = get_data(job_info['builds'], server)
     
         jobs_data[fullName] = job_data
     
