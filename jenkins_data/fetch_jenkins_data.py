@@ -140,17 +140,15 @@ def write_to_csv(jobs_data):
 
 def get_jobs_info(project, server, first_load, sub_project=False):
 
-    jobs_info = []
-    
-    if not sub_project:
-        regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
-
     if sub_project:
         return [server.get_job_info(project, depth= 2, fetch_all_builds = first_load)]
+    else:
+        jobs_info = []
+        regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
 
     # Not a sub_project
     if first_load:
-        # Only serve to extract the job name since this method is unable to extract all builds.
+        # Only serve to extract the jobs' names since this method is unable to extract all builds.
         # Use: server.get_job_info(JOB_NAME, DEPTH, fetch_all_builds=True)
         jobs_info_regex = server.get_job_info_regex(regex, folder_depth=0, depth=0)
 
