@@ -1,6 +1,7 @@
 import sys
 import jenkins
 import re
+import configparser
 
 def get_projects(path):
     projects = []
@@ -31,8 +32,8 @@ def extract_test_data(test_report):
         # Each case tests something different in a class
         for case in suite['cases']:
         
-            test_cases_result.append([package, class_,case['name'],\
-            case['duration'], case['status']])
+            test_cases_result.append((package, class_,case['name'],\
+            case['duration'], case['status']))
     
     return (test_duration, test_cases_result)
 
@@ -133,22 +134,35 @@ def get_data(builds , server):
 
     return builds_tests_data
 
-def write_to_csv(project_info):
-    pass
+def write_to_csv(jobs_data):
 
-def process_project(project, server, sub_project=False):
+    return
 
-    if sub_project:
-        jobs_info = [server.get_job_info(project, depth=2)]
+def get_jobs_info(project, server, first_load, sub_project):
+
+    jobs_info = []
+
+    regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
+
+    if first_load:
+        # Only serve to extract the job name since this method is unable to extract all builds.
+        # Use: server.get_job_info(JOB_NAME, DEPTH, fetch_all_builds=True)
+        jobs_info_regex = server.get_job_info_regex(regex, folder_depth=0, depth=0)
+
+        for job_info in jobs_info_regex:
+            jobs_info.append(server.get_job_info(job_info['fullName'], depth= 2, fetch_all_builds = True))
+
     else:
-        regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
-
         # depth = 2 to extract some more info to avoid querying the server many times
         jobs_info = server.get_job_info_regex(regex, folder_depth=0, depth=2)
 
+    return jobs_info
+
+def process_project(project, server, first_load=False, sub_project=False):
+
     jobs_data = {}
 
-    for job_info in jobs_info:
+    for job_info in get_jobs_info(project, server, first_load, sub_project):
 
         class_ = job_info['_class'].split('.')[-1]
         fullName = job_info['fullName']
@@ -174,7 +188,7 @@ def process_project(project, server, sub_project=False):
     
         jobs_data[fullName] = job_data
     
-    #write_to_csv(jobs_data)
+    write_to_csv(jobs_data)
 
 if __name__ == "__main__":
 
@@ -192,4 +206,4 @@ if __name__ == "__main__":
     print(projects)
 
     for project in projects:
-        process_project(project, server)
+        process_project(project, server, first_load = False)
