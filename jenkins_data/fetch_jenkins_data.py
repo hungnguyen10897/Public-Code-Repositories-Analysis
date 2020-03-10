@@ -44,10 +44,10 @@ def get_data(builds , server):
 
         build_data = {}
 
-        build_data['build_number'] = build['id']
-        build_data['build_result'] = build['result']
-        build_data['build_duration'] = build['duration']
-        build_data['build_estimated_duration'] = build['estimatedDuration']
+        build_number = int(build['id'])
+        build_result = build['result']
+        build_duration = build['duration']
+        build_estimated_duration = build['estimatedDuration']
 
         # Get revision number
         revision_number = None
@@ -66,8 +66,6 @@ def get_data(builds , server):
                     if 'SHA1' in action['lastBuiltRevision']:
                         revision_number = action['lastBuiltRevision']['SHA1']
 
-        build_data['build_revision_number'] = revision_number
-
         # Get info about commit
         commit_ids_ts = {}
 
@@ -83,54 +81,53 @@ def get_data(builds , server):
             print(f"WARNING: {len(commit_ids_ts)} commits ids found for the build \
                 {build['fullDisplayName']}")
 
-        build_data['build_commit_ids_ts'] = commit_ids_ts
-
         # Get general test data:
         job_name = build['fullDisplayName'].split('#')[0].strip()
-        test_report = server.get_build_test_report(job_name , int(build_data['build_number']), depth=0)
+        test_report = server.get_build_test_report(job_name , build_number, depth=0)
+        test_result = []
 
         if not test_report:
-            print(f"WARNING: No test report for {job_name} - {build_data['build_number']}")
-            build_data['failCount'] = None
-            build_data['passCount'] = None
-            build_data['skipCount'] = None
-            build_data['totalTestDuration'] = None
 
-            builds_tests_data.append((build_data, None))
-            continue
-
-        build_data['failCount'] = test_report['failCount']
-        build_data['skipCount'] = test_report['skipCount']
-
-        if 'passCount' in test_report:
-            build_data['passCount'] = test_report['passCount']
-
-        if 'totalCount' in test_report:
-            build_data['passCount'] = test_report['totalCount'] - test_report['failCount'] - test_report['skipCount']
-
-        # Get specific test data:
-        total_test_duration = None
-        test_result = []
-        test_report_class = test_report['_class'].split('.')[-1]
-        if test_report_class == "SurefireAggregatedReport":
-
-            for child_report in test_report['childReports']:
-                duration, child_test_result = extract_test_data(child_report['result'])
-                if duration is not None:
-                    if total_test_duration is None:
-                        total_test_duration = duration
-                    else:
-                        total_test_duration += duration
-                if child_test_result is not None:
-                    test_result = test_result + child_test_result
-
-        elif test_report_class == "TestResult":
-            total_test_duration, test_result = extract_test_data(test_report)
-
+            print(f"WARNING: No test report for {job_name} - {str(build_number)}")
+            build_fail_count = None
+            build_pass_count = None
+            build_skip_count = None
+            build_total_test_duration = None
+        
         else:
-            print(f"WARNING: Unrecognized test report class for {job_name} - {build_data['build_number']}")
 
-        build_data['totalTestDuration'] = total_test_duration
+            build_fail_count = test_report['failCount']
+            build_skip_count = test_report['skipCount']
+
+            if 'passCount' in test_report:
+                build_pass_count = test_report['passCount']
+
+            if 'totalCount' in test_report:
+                build_pass_count = test_report['totalCount'] - build_fail_count - build_skip_count
+
+            # Get specific test data:
+            build_total_test_duration = None
+            test_report_class = test_report['_class'].split('.')[-1]
+            if test_report_class == "SurefireAggregatedReport":
+
+                for child_report in test_report['childReports']:
+                    duration, child_test_result = extract_test_data(child_report['result'])
+                    if duration is not None:
+                        if build_total_test_duration is None:
+                            build_total_test_duration = duration
+                        else:
+                            build_total_test_duration += duration
+                    if child_test_result is not None:
+                        test_result = test_result + child_test_result
+
+            elif test_report_class == "TestResult":
+                build_total_test_duration, test_result = extract_test_data(test_report)
+
+            else:
+                print(f"WARNING: Unrecognized test report class for {job_name} - {str(build_number)}")
+        
+        build_data = (build_number, build_result, build_duration, build_estimated_duration, \
+                revision_number, commit_ids_ts, build_pass_count, build_fail_count, build_skip_count, build_total_test_duration)
         
         builds_tests_data.append((build_data, test_result))
 
@@ -149,7 +146,7 @@ def process_project(project, server, sub_project=False):
         # depth = 2 to extract some more info to avoid querying the server many times
         jobs_info = server.get_job_info_regex(regex, folder_depth=0, depth=2)
 
-    project_info = {}
+    jobs_data = {}
 
     for job_info in jobs_info:
 
@@ -172,11 +169,12 @@ def process_project(project, server, sub_project=False):
                 if scm_class.split('.')[-1] in ['SubversionSCM','NullSCM']:
                     continue
 
-            builds_data = get_data(job_info['builds'], server)
+            # job_data contains both build and test data
+            job_data = get_data(job_info['builds'], server)
     
-        #project_info[fullName] = (builds_data, test_data)
+        jobs_data[fullName] = job_data
     
-    #write_to_csv(project_info)
+    #write_to_csv(jobs_data)
 
 if __name__ == "__main__":
 
