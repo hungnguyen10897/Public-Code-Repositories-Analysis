@@ -14,12 +14,9 @@ def get_projects(path):
 def extract_test_data(test_report):
 
     if not test_report:
-        return None
+        return (None,None)
 
-    total_test_duration = test_report['duration']
-
-    # Not readily available
-    build_data['total_test_duration'] = total_test_duration
+    test_duration = test_report['duration']
 
     # Get test specific data.
     test_cases_result = []
@@ -27,7 +24,7 @@ def extract_test_data(test_report):
     #Each suite test a class
     for suite in test_report['suites']:
 
-        class_structure = suite['name']
+        class_structure = suite['name'].split('.')
         package = ".".join(class_structure[:-1])
         class_ = class_structure[-1]
 
@@ -37,7 +34,7 @@ def extract_test_data(test_report):
             test_cases_result.append([package, class_,case['name'],\
             case['duration'], case['status']])
     
-    return (total_test_duration, test_cases_result)
+    return (test_duration, test_cases_result)
 
 def get_data(builds , server):
     
@@ -48,7 +45,7 @@ def get_data(builds , server):
         build_data = {}
 
         build_data['build_number'] = build['id']
-        build_data['build_result'] = build['build_data']
+        build_data['build_result'] = build['result']
         build_data['build_duration'] = build['duration']
         build_data['build_estimated_duration'] = build['estimatedDuration']
 
@@ -89,12 +86,11 @@ def get_data(builds , server):
         build_data['build_commit_ids_ts'] = commit_ids_ts
 
         # Get general test data:
-        total_test_duration = None
-
         job_name = build['fullDisplayName'].split('#')[0].strip()
         test_report = server.get_build_test_report(job_name , int(build_data['build_number']), depth=0)
 
         if not test_report:
+            print(f"WARNING: No test report for {job_name} - {build_data['build_number']}")
             build_data['failCount'] = None
             build_data['passCount'] = None
             build_data['skipCount'] = None
@@ -104,31 +100,39 @@ def get_data(builds , server):
             continue
 
         build_data['failCount'] = test_report['failCount']
-        build_data['passCount'] = test_report['passCount']
         build_data['skipCount'] = test_report['skipCount']
 
+        if 'passCount' in test_report:
+            build_data['passCount'] = test_report['passCount']
+
+        if 'totalCount' in test_report:
+            build_data['passCount'] = test_report['totalCount'] - test_report['failCount'] - test_report['skipCount']
+
         # Get specific test data:
-        total_test_duration = 0
-        test_results = []
+        total_test_duration = None
+        test_result = []
         test_report_class = test_report['_class'].split('.')[-1]
         if test_report_class == "SurefireAggregatedReport":
 
             for child_report in test_report['childReports']:
-                duration, test_result = extract_test_data(child_report['build_data'])
+                duration, child_test_result = extract_test_data(child_report['result'])
                 if duration is not None:
-                    total_test_duration += duration
-                if test_result is not None:
-                    test_results = test_results + test_result
+                    if total_test_duration is None:
+                        total_test_duration = duration
+                    else:
+                        total_test_duration += duration
+                if child_test_result is not None:
+                    test_result = test_result + child_test_result
 
         elif test_report_class == "TestResult":
-            test_duration, test_results = extract_test_data(child_report['build_data'])
+            total_test_duration, test_result = extract_test_data(test_report)
 
         else:
-            print(f"WARNING: Unrecognized test report class for {job_name} {build_data['build_number']}")
+            print(f"WARNING: Unrecognized test report class for {job_name} - {build_data['build_number']}")
 
         build_data['totalTestDuration'] = total_test_duration
         
-        builds_tests_data.append(build_data)
+        builds_tests_data.append((build_data, test_result))
 
     return builds_tests_data
 
