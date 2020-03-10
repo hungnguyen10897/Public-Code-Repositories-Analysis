@@ -2,6 +2,8 @@ import sys
 import jenkins
 import re
 import configparser
+import csv
+from pathlib import Path
 
 def get_projects(path):
     projects = []
@@ -12,7 +14,7 @@ def get_projects(path):
 
     return projects
 
-def extract_test_data(test_report):
+def extract_test_data(test_report, job_name, build_number):
 
     if not test_report:
         return (None,None)
@@ -32,7 +34,7 @@ def extract_test_data(test_report):
         # Each case tests something different in a class
         for case in suite['cases']:
         
-            test_cases_result.append((package, class_,case['name'],\
+            test_cases_result.append((job_name, build_number, package, class_,case['name'],\
             case['duration'], case['status']))
     
     return (test_duration, test_cases_result)
@@ -43,8 +45,7 @@ def get_data(builds , server):
 
     for build in builds:
 
-        build_data = {}
-
+        job_name = build['fullDisplayName'].split('#')[0].strip()
         build_number = int(build['id'])
         build_result = build['result']
         build_duration = build['duration']
@@ -83,7 +84,6 @@ def get_data(builds , server):
                 {build['fullDisplayName']}")
 
         # Get general test data:
-        job_name = build['fullDisplayName'].split('#')[0].strip()
         test_report = server.get_build_test_report(job_name , build_number, depth=0)
         test_result = []
 
@@ -112,7 +112,7 @@ def get_data(builds , server):
             if test_report_class == "SurefireAggregatedReport":
 
                 for child_report in test_report['childReports']:
-                    duration, child_test_result = extract_test_data(child_report['result'])
+                    duration, child_test_result = extract_test_data(child_report['result'], job_name, build_number)
                     if duration is not None:
                         if build_total_test_duration is None:
                             build_total_test_duration = duration
@@ -122,59 +122,79 @@ def get_data(builds , server):
                         test_result = test_result + child_test_result
 
             elif test_report_class == "TestResult":
-                build_total_test_duration, test_result = extract_test_data(test_report)
+                build_total_test_duration, test_result = extract_test_data(test_report, job_name, build_number)
 
             else:
                 print(f"WARNING: Unrecognized test report class for {job_name} - {str(build_number)}")
         
-        build_data = (build_number, build_result, build_duration, build_estimated_duration, \
-                revision_number, commit_ids_ts, build_pass_count, build_fail_count, build_skip_count, build_total_test_duration)
+        # There can be multiple lines for a build of a job due to multiple commits
+        if len(commit_ids_ts) > 0:
+            for commit_id, ts in commit_ids_ts:
+                build_data = (job_name, build_number, build_result, build_duration, build_estimated_duration, \
+                    revision_number, commit_id, ts, build_pass_count, build_fail_count, build_skip_count, build_total_test_duration)
+        
+        else:
+            build_data = (job_name, build_number, build_result, build_duration, build_estimated_duration, \
+                    revision_number, None, None, build_pass_count, build_fail_count, build_skip_count, build_total_test_duration)
         
         builds_tests_data.append((build_data, test_result))
 
     return builds_tests_data
 
-def write_to_csv(jobs_data):
+def write_to_csv(project_data, output_dir_str='./data/'):
+    
+    project, jobs_data = project_data
 
-    return
+    output_dir = Path(output_dir_str)
+    output_file_builds = output_dir.joinpath(f'builds/{project}_builds.csv')
+    output_file_tests = output_dir.joinpath(f'tests/{project}_tests.csv')
+
+    build_file_fields = ["job", "build_number", "result", "duration", "estimated_duration", \
+            "revision_number", "commit_id", "test_pass_count", "test_fail_count", "test_skip_count", \
+                "total_test_duration"]
+
+    test_file_fields = ["job", "build_number","package", "class","name", "duration", "status"]
+
+    # Write both builds and tests data
+    with open(output_file_builds, 'w', newline="") as build_file:
+        with open(output_file_builds, 'w', newline="") as test_file:
+
+            writer_build = csv.writer(build_file)
+            writer_test = csv.writer(test_file)
+
+            writer_build.writerow(build_file_fields)
+            writer_test.writerow(test_file_fields)
+
+            for build_data, test_data in jobs_data:
+                writer_build.writerow(build_data)
+                
+                for test_result in test_data:
+                    writer_test.writerow(test_result)
+
 
 def get_jobs_info(project, server, first_load, sub_project=False):
 
     if sub_project:
         return [server.get_job_info(project, depth= 2, fetch_all_builds = first_load)]
-    else:
-        jobs_info = []
-        regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
 
     # Not a sub_project
-    if first_load:
-        # Only serve to extract the jobs' names since this method is unable to extract all builds.
-        # Use: server.get_job_info(JOB_NAME, DEPTH, fetch_all_builds=True)
-        jobs_info_regex = server.get_job_info_regex(regex, folder_depth=0, depth=0)
+    jobs_info = []
+    regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
 
-        for job_info in jobs_info_regex:
+    depth = 0 if first_load else 2
+    jobs_info_regex = server.get_job_info_regex(regex, folder_depth=0, depth=depth)
+        
+    for job_info in jobs_info_regex:
 
-            class_ = job_info['_class'].split('.')[-1]
-            if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
-                for sub_job in job_info['jobs']:
-                    fullName = sub_job['fullName']
-                    jobs_info += get_jobs_info(fullName, server, True, True)
-            else:
+        class_ = job_info['_class'].split('.')[-1]
+        if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
+            for sub_job in job_info['jobs']:
+                fullName = sub_job['fullName']
+                jobs_info += get_jobs_info(fullName, server, first_load, True)
+
+        else:
+            if first_load:
                 jobs_info.append(server.get_job_info(job_info['fullName'], depth= 2, fetch_all_builds = True))
-
-    else:
-        # depth = 2 to extract some more info to avoid querying the server many times
-        for job_info in server.get_job_info_regex(regex, folder_depth=0, depth=2):
-
-            class_ = job_info['_class'].split('.')[-1]
-            if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
-                # There should be a "jobs" field containing more jobs:
-                # drill again using server.get_job_info(name, depth=2)
-                # rather than doing regex again
-                for sub_job in job_info['jobs']:
-                    fullName = sub_job['fullName']
-                    jobs_info += get_jobs_info(fullName, server, False, True)
-                
             else:
                 jobs_info.append(job_info)
 
@@ -182,7 +202,7 @@ def get_jobs_info(project, server, first_load, sub_project=False):
 
 def process_project(project, server, first_load=False):
 
-    jobs_data = {}
+    jobs_data = []
 
     for job_info in get_jobs_info(project, server, first_load):
 
@@ -197,9 +217,9 @@ def process_project(project, server, first_load=False):
         # job_data contains both build and test data
         job_data = get_data(job_info['builds'], server)
     
-        jobs_data[fullName] = job_data
+        jobs_data.append = job_data
     
-    write_to_csv(jobs_data)
+    write_to_csv((project,jobs_data))
 
 if __name__ == "__main__":
 
@@ -217,4 +237,4 @@ if __name__ == "__main__":
     print(projects)
 
     for project in projects:
-        process_project(project, server, first_load = False)
+        process_project(project, server, first_load = True)
