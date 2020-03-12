@@ -70,17 +70,18 @@ def get_data(builds, job_name , server):
         # Get info about commit
         commit_ids_ts = {}
 
-        changeset_items = build['changeSet']['items']
-        for item in changeset_items:
-            if 'commitId' in item:
-                if 'date' in item:
-                    commit_ids_ts[item['commitId']] = item['date']
-                else:
-                    commit_ids_ts[item['commitId']] = None
+        if 'changeSet' in build and 'items' in build['changeSet']:
+            changeset_items = build['changeSet']['items']
+            for item in changeset_items:
+                if 'commitId' in item:
+                    if 'date' in item:
+                        commit_ids_ts[item['commitId']] = item['date']
+                    else:
+                        commit_ids_ts[item['commitId']] = None
 
-        if len(commit_ids_ts) != 1:
-            print(f"WARNING: {len(commit_ids_ts)} commits ids found for the build \
-                {build['fullDisplayName']}")
+            if len(commit_ids_ts) != 1:
+                print(f"WARNING: {len(commit_ids_ts)} commits ids found for the build \
+                    {build['fullDisplayName']}")
 
         # Get general test data:
         test_report = server.get_build_test_report(job_name , build_number, depth=0)
@@ -145,8 +146,15 @@ def write_to_csv(project_data, output_dir_str='./data/'):
     project, jobs_data = project_data
 
     output_dir = Path(output_dir_str)
-    output_file_builds = output_dir.joinpath(f'builds/{project}_builds.csv')
-    output_file_tests = output_dir.joinpath(f'tests/{project}_tests.csv')
+    
+    builds_dir = output_dir.joinpath('builds')
+    tests_dir = output_dir.joinpath('tests')
+
+    builds_dir.mkdir(parents=True, exist_ok=True)
+    tests_dir.mkdir(parents=True, exist_ok=True)
+
+    output_file_builds = builds_dir.joinpath(f"{project.lower().replace(' ', '_')}_builds.csv")
+    output_file_tests = tests_dir.joinpath(f"{project.lower().replace(' ', '_')}_tests.csv")
 
     build_file_fields = ["job", "build_number", "result", "duration", "estimated_duration", \
             "revision_number", "commit_id", "test_pass_count", "test_fail_count", "test_skip_count", \
@@ -155,8 +163,8 @@ def write_to_csv(project_data, output_dir_str='./data/'):
     test_file_fields = ["job", "build_number","package", "class","name", "duration", "status"]
 
     # Write both builds and tests data
-    with open(output_file_builds, 'w', newline="") as build_file:
-        with open(output_file_builds, 'w', newline="") as test_file:
+    with open(output_file_builds, 'w+', newline="") as build_file:
+        with open(output_file_tests, 'w+', newline="") as test_file:
 
             writer_build = csv.writer(build_file)
             writer_test = csv.writer(test_file)
@@ -164,11 +172,12 @@ def write_to_csv(project_data, output_dir_str='./data/'):
             writer_build.writerow(build_file_fields)
             writer_test.writerow(test_file_fields)
 
-            for build_data, test_data in jobs_data:
-                writer_build.writerow(build_data)
-                
-                for test_result in test_data:
-                    writer_test.writerow(test_result)
+            for job_data in jobs_data:
+                for build_data, test_data in job_data:
+                    writer_build.writerow(build_data)
+                    
+                    for test_result in test_data:
+                        writer_test.writerow(test_result)
 
 
 def get_jobs_info(project, server, first_load, sub_project=False):
@@ -220,7 +229,7 @@ def process_project(project, server, first_load=False):
         # job_data contains both build and test data
         job_data = get_data(job_info['builds'], fullName, server)
     
-        jobs_data.append = job_data
+        jobs_data.append(job_data)
     
     write_to_csv((project,jobs_data))
 
