@@ -39,13 +39,12 @@ def extract_test_data(test_report, job_name, build_number):
     
     return (test_duration, test_cases_result)
 
-def get_data(builds , server):
+def get_data(builds, job_name , server):
     
     builds_tests_data = []
 
     for build in builds:
 
-        job_name = build['fullDisplayName'].split('#')[0].strip()
         build_number = int(build['id'])
         build_result = build['result']
         build_duration = build['duration']
@@ -173,18 +172,20 @@ def write_to_csv(project_data, output_dir_str='./data/'):
 
 
 def get_jobs_info(project, server, first_load, sub_project=False):
+    # first_load: True if need to take all builds
+
+    jobs_info = []
 
     if sub_project:
-        return [server.get_job_info(project, depth= 2, fetch_all_builds = first_load)]
+        jobs = [server.get_job_info(project, depth= 2, fetch_all_builds = first_load)]
 
     # Not a sub_project
-    jobs_info = []
-    regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
+    else:
 
-    depth = 0 if first_load else 2
-    jobs_info_regex = server.get_job_info_regex(regex, folder_depth=0, depth=depth)
+        regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
+        jobs = server.get_job_info_regex(regex, folder_depth=0, depth=2)
         
-    for job_info in jobs_info_regex:
+    for job_info in jobs:
 
         class_ = job_info['_class'].split('.')[-1]
         if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
@@ -193,8 +194,10 @@ def get_jobs_info(project, server, first_load, sub_project=False):
                 jobs_info += get_jobs_info(fullName, server, first_load, True)
 
         else:
-            if first_load:
+            # number of builds = 100 means there may be more builds to be fetched => fetched again!
+            if first_load and len(job_info['builds']) == 100 and not sub_project:
                 jobs_info.append(server.get_job_info(job_info['fullName'], depth= 2, fetch_all_builds = True))
+                    
             else:
                 jobs_info.append(job_info)
 
@@ -215,7 +218,7 @@ def process_project(project, server, first_load=False):
                 continue
 
         # job_data contains both build and test data
-        job_data = get_data(job_info['builds'], server)
+        job_data = get_data(job_info['builds'], fullName, server)
     
         jobs_data.append = job_data
     
@@ -237,4 +240,4 @@ if __name__ == "__main__":
     print(projects)
 
     for project in projects:
-        process_project(project, server, first_load = True)
+        process_project(project, server, first_load = False)
