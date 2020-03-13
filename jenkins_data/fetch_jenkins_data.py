@@ -129,7 +129,7 @@ def get_data(builds, job_name , server):
         
         # There can be multiple lines for a build of a job due to multiple commits
         if len(commit_ids_ts) > 0:
-            for commit_id, ts in commit_ids_ts:
+            for commit_id, ts in commit_ids_ts.items():
                 build_data = (job_name, build_number, build_result, build_duration, build_estimated_duration, \
                     revision_number, commit_id, ts, build_pass_count, build_fail_count, build_skip_count, build_total_test_duration)
         
