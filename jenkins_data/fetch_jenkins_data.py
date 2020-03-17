@@ -45,27 +45,35 @@ def get_data(builds, job_name , server):
 
     for build in builds:
 
-        build_number = int(build['id'])
-        build_result = build['result']
-        build_duration = build['duration']
-        build_estimated_duration = build['estimatedDuration']
+        if 'id' in build:
+            build_number = int(build['id'])
+        else:
+            if 'number' in build:
+                build_number = int(build['number'])
+            else:
+                continue
+
+        build_result = None if 'result' not in build else build['result']
+        build_duration = None if 'duration' not in build else build['duration']
+        build_estimated_duration = None if 'estimatedDuration' not in build else build['estimatedDuration']
 
         # Get revision number
         revision_number = None
 
-        for action in build['actions']:
-            if not action:
-                continue
+        if 'actions' in build:
+            for action in build['actions']:
+                if not action:
+                    continue
 
-            if action['_class'].split('.')[-1] == 'TestResultAction':
-                fail_count = action['failCount']
-                skip_count = action['skipCount']
-                total_count = action['totalCount']
+                if action['_class'].split('.')[-1] == 'TestResultAction':
+                    fail_count = action['failCount']
+                    skip_count = action['skipCount']
+                    total_count = action['totalCount']
 
-            if action['_class'].split('.')[-1] == 'BuildData':
-                if 'lastBuiltRevision' in action:
-                    if 'SHA1' in action['lastBuiltRevision']:
-                        revision_number = action['lastBuiltRevision']['SHA1']
+                if action['_class'].split('.')[-1] == 'BuildData':
+                    if 'lastBuiltRevision' in action:
+                        if 'SHA1' in action['lastBuiltRevision']:
+                            revision_number = action['lastBuiltRevision']['SHA1']
 
         # Get info about commit
         commit_ids_ts = {}
@@ -157,7 +165,7 @@ def write_to_csv(project_data, output_dir_str='./data/'):
     output_file_tests = tests_dir.joinpath(f"{project.lower().replace(' ', '_')}_tests.csv")
 
     build_file_fields = ["job", "build_number", "result", "duration", "estimated_duration", \
-            "revision_number", "commit_id", "test_pass_count", "test_fail_count", "test_skip_count", \
+            "revision_number", "commit_id", "commit_ts", "test_pass_count", "test_fail_count", "test_skip_count", \
                 "total_test_duration"]
 
     test_file_fields = ["job", "build_number","package", "class","name", "duration", "status"]
@@ -249,4 +257,5 @@ if __name__ == "__main__":
     print(projects)
 
     for project in projects:
-        process_project(project, server, first_load = False)
+        print(f"Processing: {project}")
+        process_project(project, server, first_load = True)
