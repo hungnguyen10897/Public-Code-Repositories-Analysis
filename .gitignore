@@ -3,3 +3,4 @@ jenkins_data/.ipynb_checkpoints/jenkins_eda-checkpoint.ipynb
 jenkins_data/projects_test.csv
 **/data/**
 
+sqlite-jdbc-3.8.6.jar
