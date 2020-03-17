@@ -4,12 +4,13 @@ import re
 import configparser
 import csv
 from pathlib import Path
+from datetime import datetime, timedelta
 
 def get_projects(path):
     projects = []
     with open(path, 'r') as f:
         for line in f:
-            project_name = line.strip()
+            project_name = line.strip().strip("\"")
             projects.append(project_name)
 
     return projects
@@ -38,6 +39,23 @@ def extract_test_data(test_report, job_name, build_number):
             case['duration'], case['status']))
     
     return (test_duration, test_cases_result)
+
+def process_date_time(time_str):
+    if time_str is None:
+        return None
+
+    ts_parts = time_str.split(' ')
+    tz = ts_parts[2]
+    
+    ts = datetime.strptime(" ".join(ts_parts[:2]), "%Y-%m-%d %H:%M:%S")
+    offset = timedelta(hours = int(tz[1:3]), minutes = int(tz[3:5]))
+
+    if tz[0] == '-':
+        ts = ts + offset
+    elif tz[0] == '+':
+        ts = ts - offset
+    
+    return ts
 
 def get_data(builds, job_name , server):
     
@@ -83,7 +101,7 @@ def get_data(builds, job_name , server):
             for item in changeset_items:
                 if 'commitId' in item:
                     if 'date' in item:
-                        commit_ids_ts[item['commitId']] = item['date']
+                        commit_ids_ts[item['commitId']] = process_date_time(item['date'])
                     else:
                         commit_ids_ts[item['commitId']] = None
 
@@ -149,7 +167,7 @@ def get_data(builds, job_name , server):
 
     return builds_tests_data
 
-def write_to_csv(project_data, output_dir_str='./data/'):
+def write_to_csv(project_data, output_dir_str):
     
     project, jobs_data = project_data
 
@@ -220,7 +238,7 @@ def get_jobs_info(project, server, first_load, sub_project=False):
 
     return jobs_info
 
-def process_project(project, server, first_load=False):
+def process_project(project, server, first_load=False, output_dir_str ='./data'):
 
     jobs_data = []
 
@@ -239,11 +257,12 @@ def process_project(project, server, first_load=False):
     
         jobs_data.append(job_data)
     
-    write_to_csv((project,jobs_data))
+    write_to_csv((project,jobs_data), output_dir_str)
 
 if __name__ == "__main__":
 
     server = jenkins.Jenkins('https://builds.apache.org/')
+    output_dir_str = './data'
 
     # Sometimes connecting to Jenkins server is banned due to ill use of API
     # Test connection to server
@@ -258,4 +277,4 @@ if __name__ == "__main__":
 
     for project in projects:
         print(f"Processing: {project}")
-        process_project(project, server, first_load = True)
+        process_project(project, server, first_load = True, output_dir_str = output_dir_str)
