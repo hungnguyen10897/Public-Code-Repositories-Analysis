@@ -46,6 +46,10 @@ def process_date_time(time_str):
         return None
 
     ts_parts = time_str.split(' ')
+    if len(ts_parts) != 3:
+        ts = datetime.strptime(time_str[:19], "%Y-%m-%dT%H:%M:%S")
+        return ts
+
     tz = ts_parts[2]
     
     ts = datetime.strptime(" ".join(ts_parts[:2]), "%Y-%m-%d %H:%M:%S")
@@ -213,13 +217,13 @@ def get_jobs_info(project, server, first_load, sub_project=False):
     jobs_info = []
 
     if sub_project:
-        jobs = [server.get_job_info(project, depth= 2, fetch_all_builds = first_load)]
+        jobs = [server.get_job_info(project, depth= 0, fetch_all_builds = first_load)]
 
     # Not a sub_project
     else:
 
         regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
-        jobs = server.get_job_info_regex(regex, folder_depth=0, depth=2)
+        jobs = server.get_job_info_regex(regex, folder_depth=0, depth=0)
         
     for job_info in jobs:
 
@@ -233,11 +237,8 @@ def get_jobs_info(project, server, first_load, sub_project=False):
             # number of builds = 100 means there may be more builds to be fetched => fetched again!
             if first_load and len(job_info['builds']) == 100 and not sub_project:
 
+                jobs_info.append(server.get_job_info(job_info['fullName'], depth= 0, fetch_all_builds = True))
 
-                jobs_info.append(server.get_job_info(job_info['fullName'], depth= 2, fetch_all_builds = True))
-
-                
-                    
             else:
                 jobs_info.append(job_info)
 
@@ -257,8 +258,14 @@ def process_project(project, server, first_load=False, output_dir_str ='./data')
             if scm_class in ['SubversionSCM','NullSCM']:
                 continue
 
+        builds_data = []
+        #get builds info:
+        for build in job_info['builds']:
+            build_number = build['number']
+            builds_data.append(server.get_build_info(fullName, build_number, depth=1))
+
         # job_data contains both build and test data
-        job_data = get_data(job_info['builds'], fullName, server)
+        job_data = get_data(builds_data, fullName, server)
     
         jobs_data.append(job_data)
     
@@ -269,7 +276,7 @@ if __name__ == "__main__":
     start = time.time()
 
     server = jenkins.Jenkins('https://builds.apache.org/')
-    output_dir_str = './data2'
+    output_dir_str = './data'
 
     # Sometimes connecting to Jenkins server is banned due to ill use of API
     # Test connection to server
@@ -284,7 +291,7 @@ if __name__ == "__main__":
 
     for project in projects:
         print(f"Processing: {project}")
-        process_project(project, server, first_load = False, output_dir_str = output_dir_str)
+        process_project(project, server, first_load = True, output_dir_str = output_dir_str)
 
     end = time.time()
     print(f"Time total: {end-start}")
