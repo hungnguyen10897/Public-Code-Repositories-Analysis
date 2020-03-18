@@ -1,5 +1,6 @@
 import sys
 import jenkins
+from jenkins import JenkinsException
 import re
 import configparser
 import csv
@@ -110,9 +111,9 @@ def get_data(builds, job_name , server):
                     else:
                         commit_ids_ts[item['commitId']] = None
 
-            if len(commit_ids_ts) != 1:
-                print(f"WARNING: {len(commit_ids_ts)} commits ids found for the build \
-                    {build['fullDisplayName']}")
+            # if len(commit_ids_ts) != 1:
+            #     print(f"WARNING: {len(commit_ids_ts)} commits ids found for the build \
+            #         {build['fullDisplayName']}")
 
         # Get general test data:
         test_report = server.get_build_test_report(job_name , build_number, depth=0)
@@ -262,7 +263,11 @@ def process_project(project, server, first_load=False, output_dir_str ='./data')
         #get builds info:
         for build in job_info['builds']:
             build_number = build['number']
-            builds_data.append(server.get_build_info(fullName, build_number, depth=1))
+            try:
+                build_data = server.get_build_info(fullName, build_number, depth=1)
+                builds_data.append(build_data)
+            except JenkinsException as e:
+                print(f"JenkinsException: {e}")
 
         # job_data contains both build and test data
         job_data = get_data(builds_data, fullName, server)
