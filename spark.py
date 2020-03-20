@@ -44,7 +44,6 @@ def get_jenkins_builds_data(jenkins_data_directory):
     schema = StructType(field)
     output = spark.createDataFrame(sc.emptyRDD(), schema)
     for file in builds_path.glob('*.csv'):
-        print(file.resolve())
 
         df = spark.read.csv(str(file.resolve()), sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
             ignoreTrailingWhiteSpace = True, header=True)
@@ -71,6 +70,8 @@ def refactor_type_count(refactoring_miner_df):
         FROM REFACTORING_MINER GROUP BY projectID,commitHash
     """
 
+    # print(sql_str)
+
     return spark.sql(sql_str)
 
 if __name__ == "__main__":
@@ -91,12 +92,18 @@ if __name__ == "__main__":
     refactoring_miner_df.unpersist()
 
     jenkins_builds_df = get_jenkins_builds_data(jenkins_data_directory)
-    jenkins_builds_df.show()
+    
 
     jenkins_builds_df = jenkins_builds_df.filter("commit_id IS NOT NULL")
+    jenkins_builds_df.persist()
 
+    #jenkins_builds_df.repartition(1).write.csv('./jenkins_builds.csv', header=True)
 
     result = jenkins_builds_df.join(refactor_count_df, jenkins_builds_df.commit_id == refactor_count_df.commitHash, how = 'inner')
     result.cache()
+    
+    print("RM Count: ", refactor_count_df.count())
+    print("Jenkins Count: ", jenkins_builds_df.count())
+    print("Result Count: ",result.count())
 
     spark.stop()

@@ -4,3 +4,4 @@ jenkins_data/projects_test.csv
 **/data/**
 
 sqlite-jdbc-3.8.6.jar
+jenkins_builds.csv
