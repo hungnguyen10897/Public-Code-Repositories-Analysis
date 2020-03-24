@@ -1,0 +1,24 @@
+version: "3.7"
+
+services:
+  db:
+    image: postgres
+    build:
+      context: .
+      dockerfile: postgres-dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./db_home:/var/lib/postgresql/data
+    networks:
+      - PRA_net
+
+volumes:
+  db_home:
+    external: false
+
+networks:
+  PRA_net:      
+    external: true
+    name: PRA_net
