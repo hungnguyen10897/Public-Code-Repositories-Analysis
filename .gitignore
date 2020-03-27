@@ -6,3 +6,6 @@ jenkins_data/projects_test.csv
 sqlite-jdbc-3.8.6.jar
 jenkins_builds.csv
 db/db_home/
+sonarcloud_data/projects_on_jenkins.txt
+sonarcloud_data/projects_on_sonarcloud.txt
+sonarcloud_data/metrics.txt
