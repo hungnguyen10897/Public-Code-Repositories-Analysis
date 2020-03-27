@@ -4,7 +4,7 @@ import math
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
 
-def get_server_info(type, iter = 1):
+def get_server_info(type, iter = 1, project_key = None):
 
     page_size = 500
     params = {'p' : iter, 'ps':page_size}
@@ -15,6 +15,10 @@ def get_server_info(type, iter = 1):
 
     elif type == 'metrics':
         endpoint = SERVER + "api/metrics/search"
+
+    elif type == 'analyses':
+        endpoint = SERVER + "api/project_analyses/search"
+        params['project'] = project_key
 
     else:
         print("ERROR: Illegal info type.")
@@ -34,6 +38,9 @@ def get_server_info(type, iter = 1):
     elif type == 'metrics':
         element_list = r_dict['metrics']
         total_num_elements = r_dict['total']
+    elif type == 'analyses':
+        element_list = r_dict['analyses']
+        total_num_elements = r_dict['paging']['total']
 
     if iter*page_size < total_num_elements:
         element_list = element_list + get_server_info(type, iter+1)
@@ -41,12 +48,12 @@ def get_server_info(type, iter = 1):
     return element_list
 
 def process_project(project):
-    page_size = 200
-    params = {}
-    key = project['key']
 
-    r = requests.get(SERVER + "api/project_analyses/search")
+    project_key = project['key']
+    project_analyses = get_server_info('analyses', 1, project_key = project_key)
 
+    for analysis in project_analyses:
+        pass
 
 if __name__ == "__main__":
 
