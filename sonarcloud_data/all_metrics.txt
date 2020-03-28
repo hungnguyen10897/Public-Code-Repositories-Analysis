@@ -1,0 +1,105 @@
+26 - Complexity - complexity - Cyclomatic complexity
+27 - Complexity - class_complexity - Complexity average by class
+28 - Complexity - function_complexity - Complexity average by function
+38 - Complexity - file_complexity - Complexity average by file
+59 - Complexity - function_complexity_distribution - Functions distribution /complexity
+154 - Complexity - file_complexity_distribution - Files distribution /complexity
+272 - Complexity - complexity_in_classes - Cyclomatic complexity in classes
+273 - Complexity - complexity_in_functions - Cyclomatic complexity in functions
+347 - Complexity - cognitive_complexity - Cognitive complexity
+10 - Coverage - test_errors - Number of unit test errors
+11 - Coverage - skipped_tests - Number of skipped unit tests
+12 - Coverage - test_failures - Number of unit test failures
+13 - Coverage - tests - Number of unit tests
+14 - Coverage - test_execution_time - Execution duration of unit tests
+15 - Coverage - test_success_density - Density of successful unit tests
+20 - Coverage - coverage - Coverage by tests
+92 - Coverage - lines_to_cover - Lines to cover
+93 - Coverage - uncovered_lines - Uncovered lines
+94 - Coverage - line_coverage - Line coverage
+95 - Coverage - conditions_to_cover - Conditions to cover
+96 - Coverage - uncovered_conditions - Uncovered conditions
+97 - Coverage - branch_coverage - Condition coverage
+172 - Coverage - new_coverage - Coverage of new/changed code
+173 - Coverage - new_lines_to_cover - Lines to cover on new code
+174 - Coverage - new_uncovered_lines - Uncovered lines on new code
+175 - Coverage - new_line_coverage - Line coverage of added/changed code
+176 - Coverage - new_conditions_to_cover - Conditions to cover on new code
+177 - Coverage - new_uncovered_conditions - Uncovered conditions on new code
+178 - Coverage - new_branch_coverage - Condition coverage of new/changed code
+321 - Coverage - executable_lines_data - No Description
+58 - Documentation - public_api - Public API
+61 - Documentation - public_documented_api_density - Public documented classes and functions balanced by ncloc
+62 - Documentation - public_undocumented_api - Public undocumented classes, functions and variables
+8 - Duplications - duplicated_lines - Duplicated lines
+34 - Duplications - duplicated_lines_density - Duplicated lines balanced by statements
+51 - Duplications - duplicated_blocks - Duplicated blocks
+52 - Duplications - duplicated_files - Duplicated files
+53 - Duplications - duplications_data - Duplications details
+338 - Duplications - new_duplicated_lines - Duplicated Lines on New Code
+339 - Duplications - new_duplicated_blocks - Duplicated blocks on new code
+340 - Duplications - new_duplicated_lines_density - Duplicated lines on new code balanced by statements
+47 - General - quality_profiles - Details of quality profiles used during analysis
+294 - General - quality_gate_details - The project detailed status with regard to its quality gate
+42 - Issues - violations - Issues
+78 - Issues - blocker_violations - Blocker issues
+79 - Issues - critical_violations - Critical issues
+80 - Issues - major_violations - Major issues
+81 - Issues - minor_violations - Minor issues
+82 - Issues - info_violations - Info issues
+164 - Issues - new_violations - New issues
+165 - Issues - new_blocker_violations - New Blocker issues
+166 - Issues - new_critical_violations - New Critical issues
+167 - Issues - new_major_violations - New Major issues
+168 - Issues - new_minor_violations - New Minor issues
+169 - Issues - new_info_violations - New Info issues
+274 - Issues - false_positive_issues - False positive issues
+275 - Issues - open_issues - Open issues
+276 - Issues - reopened_issues - Reopened issues
+277 - Issues - confirmed_issues - Confirmed issues
+324 - Issues - wont_fix_issues - Won't fix issues
+162 - Maintainability - sqale_index - Total effort (in hours) to fix all the issues on the component and therefore to comply to all the requirements.
+163 - Maintainability - sqale_rating - A-to-E rating based on the technical debt ratio
+280 - Maintainability - development_cost - Development cost
+289 - Maintainability - new_technical_debt - Added technical debt
+297 - Maintainability - sqale_debt_ratio - Ratio of the actual technical debt compared to the estimated cost to develop the whole source code from scratch
+304 - Maintainability - new_sqale_debt_ratio - Technical Debt Ratio of new/changed code.
+306 - Maintainability - code_smells - Code Smells
+307 - Maintainability - new_code_smells - New Code Smells
+312 - Maintainability - effort_to_reach_maintainability_rating_a - Effort to reach maintainability rating A
+341 - Maintainability - new_maintainability_rating - Maintainability rating on new code
+348 - Maintainability - new_development_cost - Development cost on new code
+349 - No Domain - sonarjava_feedback - No Description
+48 - Releasability - alert_status - The project status with regard to its quality gate.
+308 - Reliability - bugs - Bugs
+309 - Reliability - new_bugs - New Bugs
+313 - Reliability - reliability_remediation_effort - Reliability Remediation Effort
+314 - Reliability - new_reliability_remediation_effort - Reliability remediation effort on new code
+315 - Reliability - reliability_rating - Reliability rating
+342 - Reliability - new_reliability_rating - Reliability rating on new code
+181 - SCM - last_commit_date - No Description
+310 - Security - vulnerabilities - Vulnerabilities
+311 - Security - new_vulnerabilities - New Vulnerabilities
+317 - Security - security_remediation_effort - Security remediation effort
+318 - Security - new_security_remediation_effort - Security remediation effort on new code
+319 - Security - security_rating - Security rating
+343 - Security - new_security_rating - Security rating on new code
+350 - Security - security_hotspots - Security Hotspots
+351 - Security - new_security_hotspots - New Security Hotspots
+352 - Security - security_review_rating - Security Review Rating
+4 - Size - classes - Classes
+5 - Size - ncloc - Non commenting lines of code
+6 - Size - functions - Functions
+32 - Size - comment_lines - Number of comment lines
+33 - Size - comment_lines_density - Comments balanced by ncloc + comment lines
+36 - Size - files - Number of files
+37 - Size - directories - Directories
+55 - Size - lines - Lines
+60 - Size - statements - Number of statements
+150 - Size - generated_lines - Number of generated lines
+151 - Size - generated_ncloc - Generated non Commenting Lines of Code
+238 - Size - ncloc_data - No Description
+239 - Size - comment_lines_data - No Description
+240 - Size - projects - Number of projects
+293 - Size - ncloc_language_distribution - Non Commenting Lines of Code Distributed By Language
+337 - Size - new_lines - New lines
