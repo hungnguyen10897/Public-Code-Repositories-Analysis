@@ -101,7 +101,16 @@ def load_metrics(path = None):
         sys.exit(1)
 
 def extract_measures_value(measures):
-    pass 
+    columns = []
+    data = {}
+    for measure in measures:
+        metric = measure['metric']
+        columns.append(metric)
+        history = measure['history']
+        values = list((map(lambda x: None if 'value' not in x else x['value'], history)))
+        data[metric] = values
+    
+    return columns, data
 
 def process_project(project, metrics_path = None):
 
@@ -126,6 +135,7 @@ def process_project(project, metrics_path = None):
         #Get measures
         measures = measures + query_server('measures',1,project_key, metrics[i:i+15])
 
+    # For testing
     # return measures
 
     metric_columns, measures_data = extract_measures_value(measures)
@@ -149,10 +159,8 @@ if __name__ == "__main__":
     #             ))
 
 
-    # project_list = query_server(type='projects')
-    # project_list.sort(key = lambda x: x['key'])
+    project_list = query_server(type='projects')
+    project_list.sort(key = lambda x: x['key'])
 
-    # for project in project_list:
-    #     process_project(project)
-
-    a = load_metrics()
+    for project in project_list:
+        process_project(project)
