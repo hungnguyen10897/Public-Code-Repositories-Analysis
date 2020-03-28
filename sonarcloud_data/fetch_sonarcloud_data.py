@@ -91,11 +91,14 @@ def load_metrics(path = None):
         print(f"ERROR: Path for metrics {p.resolve()} does not exists.")
         sys.exit(1)
     try:
-        metrics_list = []
+        metrics_order = {}
         with open(p, 'r') as f:
+            order = 0
             for line in f:
-                metrics_list.append(line.split(' - ')[2])
-        return metrics_list
+                metric = line.split(' - ')[2]
+                metrics_order[metric] = order
+                order += 1
+        return metrics_order
     except:
         print("ERROR: Reading metrics file")
         sys.exit(1)
@@ -128,19 +131,23 @@ def process_project(project, metrics_path = None):
         version = None if 'projectVersion' not in analysis else analysis['projectVersion']
         version_list.append(version)
     
-    metrics = load_metrics(metrics_path)
+    metrics_order = load_metrics(metrics_path)
+    metrics = list(metrics_order.keys())
 
     measures = []
     for i in range(0,len(metrics), 15):
         #Get measures
         measures = measures + query_server('measures',1,project_key, metrics[i:i+15])
+    
+    measures.sort(key = lambda x: metrics_order[x['metric']])
 
     # For testing
     # return measures
 
     metric_columns, measures_data = extract_measures_value(measures)
     #Create DF
-    df = pd.DataFrame(measures_data, metric_columns)
+    df = pd.DataFrame(measures_data,columns= metric_columns)
+    print(0)
 
 
 if __name__ == "__main__":
