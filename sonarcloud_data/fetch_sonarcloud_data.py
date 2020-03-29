@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 import pandas as pd
+from collections import OrderedDict
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
@@ -67,7 +68,6 @@ def concat_measures(measures_1,measures_2):
         measure_1['history'] = measure_1['history'] + measure_2['history']
     return measures_1
 
-
 def process_datetime(time_str):
     if time_str is None:
         return None
@@ -110,24 +110,26 @@ def safe_cast(val, to_type):
         try:
             return int(val)
         except (ValueError, TypeError):
-            print(f"ERROR: error casting value {str(val)} to type {to_type}")
+            print(f"WARNING: exception casting value {str(val)} to type {to_type}")
             return None
     elif to_type in ['FLOAT', 'PERCENT', 'RATING']:
         try:
             return float(val)
         except (ValueError, TypeError):
-            print(f"ERROR: error casting value {str(val)} to type {to_type}")
+            print(f"WARNING: exception casting value {str(val)} to type {to_type}")
             return None
     elif to_type == 'BOOL':
         try:
             return bool(val)
         except (ValueError, TypeError):
-            print(f"ERROR: error casting value {str(val)} to type {to_type}")
+            print(f"WARNING: exception casting value {str(val)} to type {to_type}")
             return None
-    elif type == 'MILISEC':
+    elif type == 'MILLISEC':
         try:
             return datetime.fromtimestamp(int(val)/1000)
-
+        except (ValueError, TypeError):
+            print(f"WARNING: exception casting value {str(val)} to type {to_type}")
+            return None
     else:
         try:
             return str(val)
@@ -135,14 +137,10 @@ def safe_cast(val, to_type):
             print(f"ERROR: error casting to type {to_type}")
             return None
 
+def extract_measures_value(measures, metrics_order_type, columns, data):
 
-
-def extract_measures_value(measures, metrics_order_type):
-    columns = []
-    data = {}
     for measure in measures:
         metric = measure['metric']
-
         type = metrics_order_type[metric][1]
 
         columns.append(metric)
@@ -152,10 +150,14 @@ def extract_measures_value(measures, metrics_order_type):
     
     return columns, data
 
-def process_project(project, metrics_path = None):
+def process_project(project, metrics_path = None, save_as = 'csv', output_path = None):
 
     project_key = project['key']
     project_analyses = query_server('analyses', 1, project_key = project_key)
+    print(f"{project_key} - {len(project_analyses)} analyses")
+
+    if len(project_analyses) == 0:
+        return
 
     revision_list = []
     date_list = []
@@ -178,13 +180,26 @@ def process_project(project, metrics_path = None):
     
     measures.sort(key = lambda x: metrics_order_type[x['metric']][0])
 
-    # For testing
-    # return measures
+    data = OrderedDict()
+    data['project'] = [project_key] * len(project_analyses)
+    data['version'] = version_list
+    data['date'] = date_list
+    data['revision'] = revision_list
+    columns = ['project', 'version', 'date', 'revision']
 
-    metric_columns, measures_data = extract_measures_value(measures, metrics_order_type)
+    columns_with_metrics, data_with_measures = extract_measures_value(measures, metrics_order_type, columns, data)
+
     #Create DF
-    df = pd.DataFrame(measures_data,columns= metric_columns)
-    print(0)
+    df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
+
+    if not output_path:
+        output_path = Path('./sonar_data').joinpath(f"{project_key}.{save_as}")
+
+    if save_as == "csv":
+        df.to_csv(path_or_buf= output_path, index=False, header=True)
+    elif save_as == "parquet":
+        df.to_parquet()
+
 
 def write_metrics_file(metric_list):
     metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
@@ -207,5 +222,9 @@ if __name__ == "__main__":
     project_list = query_server(type='projects')
     project_list.sort(key = lambda x: x['key'])
 
+    print(f"Total: {len(project_list)} projects")
+    i = 0
     for project in project_list:
-        process_project(project)
+        print(f"\t{i}: ", end = "")
+        process_project(project, save_as = 'csv')
+        i += 1
