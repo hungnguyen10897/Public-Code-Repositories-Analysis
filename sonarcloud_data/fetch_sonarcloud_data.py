@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import pandas as pd
 from collections import OrderedDict
+import argparse
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
@@ -146,6 +147,7 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
         columns.append(metric)
         history = measure['history']
         values = list((map(lambda x: None if 'value' not in x else safe_cast(x['value'],type), history)))
+        values.reverse()
         data[metric] = values
     
     return columns, data
@@ -215,6 +217,16 @@ def write_metrics_file(metric_list):
                 ))
 
 if __name__ == "__main__":
+
+    ap = argparse.ArgumentParser()
+
+    ap.add_argument("-o","--output", choices=['csv', 'parquet'], default='csv', 
+        help="Output file format. Can either be csv or parquet")
+
+    ap.add_argument("-p","--path", default='./sonar_data' , help="Path to output file directory.")
+
+    args = vars(ap.parse_args())
+    # operation = args['operation']
 
     # Write all metrics to a file
     # write_metrics_file(query_server(type='metrics'))
