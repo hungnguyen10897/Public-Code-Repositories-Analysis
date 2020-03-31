@@ -152,7 +152,7 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
     
     return columns, data
 
-def process_project(project, metrics_path = None, save_as = 'csv', output_path = None):
+def process_project(project, load, format, output_path, metrics_path = None ):
 
     project_key = project['key']
     project_analyses = query_server('analyses', 1, project_key = project_key)
@@ -194,12 +194,13 @@ def process_project(project, metrics_path = None, save_as = 'csv', output_path =
     #Create DF
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
 
-    if not output_path:
-        output_path = Path('./sonar_data').joinpath(f"{project_key}.{save_as}")
+    output_path_format = output_path.joinpath(format)
+    output_path_format.mkdir(parents=True, exist_ok=True)
+    file_path = output_path_format.joinpath(f"{project_key}.{format}")
 
-    if save_as == "csv":
-        df.to_csv(path_or_buf= output_path, index=False, header=True)
-    elif save_as == "parquet":
+    if format == "csv":
+        df.to_csv(path_or_buf= file_path, index=False, header=True)
+    elif format == "parquet":
         df.to_parquet()
 
 
@@ -220,13 +221,16 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
 
-    ap.add_argument("-o","--output", choices=['csv', 'parquet'], default='csv', 
+    ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', 
         help="Output file format. Can either be csv or parquet")
 
-    ap.add_argument("-p","--path", default='./sonar_data' , help="Path to output file directory.")
+    ap.add_argument("-o","--output-path", default='./sonar_data' , help="Path to output file directory.")
+    ap.add_argument("-l","--load", choices = ['first', 'incremental'], default='incremental' , help="Path to output file directory.")
 
     args = vars(ap.parse_args())
-    # operation = args['operation']
+    format = args['format']
+    output_path = args['output_path']
+    load = args['load']
 
     # Write all metrics to a file
     # write_metrics_file(query_server(type='metrics'))
@@ -238,5 +242,5 @@ if __name__ == "__main__":
     i = 0
     for project in project_list:
         print(f"\t{i}: ", end = "")
-        process_project(project, save_as = 'csv')
+        process_project(project, load, format, output_path)
         i += 1
