@@ -8,6 +8,7 @@ jenkins_builds.csv
 db/db_home/
 sonarcloud_data/projects_on_jenkins.txt
 sonarcloud_data/projects_on_sonarcloud.txt
+sonarcloud_data/agg_sonar.csv
 sonarcloud_data/metrics.txt
 sonarcloud_data/sonar_data/
 **/test.py

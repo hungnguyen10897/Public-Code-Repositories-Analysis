@@ -7,6 +7,7 @@ import csv
 from pathlib import Path
 from datetime import datetime, timedelta
 import time
+import argparse
 
 def get_projects(path):
     projects = []
@@ -17,12 +18,15 @@ def get_projects(path):
 
     return projects
 
-def extract_test_data(test_report, job_name, build_number):
+def extract_test_data(test_report, job_name, build_number, build_only):
 
     if not test_report:
-        return (None,None)
+        return (None,[])
 
     test_duration = test_report['duration']
+
+    if build_only:
+        return (test_duration, [])
 
     # Get test specific data.
     test_cases_result = []
@@ -63,7 +67,7 @@ def process_date_time(time_str):
     
     return ts
 
-def get_data(builds, job_name , server):
+def get_data(builds, job_name , server, build_only):
     
     builds_tests_data = []
 
@@ -144,17 +148,17 @@ def get_data(builds, job_name , server):
             if test_report_class == "SurefireAggregatedReport":
 
                 for child_report in test_report['childReports']:
-                    duration, child_test_result = extract_test_data(child_report['result'], job_name, build_number)
+                    duration, child_test_result = extract_test_data(child_report['result'], job_name, build_number, build_only)
                     if duration is not None:
                         if build_total_test_duration is None:
                             build_total_test_duration = duration
                         else:
                             build_total_test_duration += duration
-                    if child_test_result is not None:
-                        test_result = test_result + child_test_result
+
+                    test_result = test_result + child_test_result
 
             elif test_report_class == "TestResult":
-                build_total_test_duration, test_result = extract_test_data(test_report, job_name, build_number)
+                build_total_test_duration, test_result = extract_test_data(test_report, job_name, build_number, build_only)
 
             else:
                 print(f"WARNING: Unrecognized test report class for {job_name} - {str(build_number)}")
@@ -173,43 +177,47 @@ def get_data(builds, job_name , server):
 
     return builds_tests_data
 
-def write_to_csv(project_data, output_dir_str):
+def write_to_csv(project_data, output_dir_str, build_only):
     
     project, jobs_data = project_data
-
     output_dir = Path(output_dir_str)
-    
+
+    if not build_only:
+        tests_dir = output_dir.joinpath('tests')
+        tests_dir.mkdir(parents=True, exist_ok=True)
+        output_file_tests = tests_dir.joinpath(f"{project.lower().replace(' ', '_')}_tests.csv")
+        test_file_fields = ["job", "build_number","package", "class","name", "duration", "status"]
+
     builds_dir = output_dir.joinpath('builds')
-    tests_dir = output_dir.joinpath('tests')
-
     builds_dir.mkdir(parents=True, exist_ok=True)
-    tests_dir.mkdir(parents=True, exist_ok=True)
-
     output_file_builds = builds_dir.joinpath(f"{project.lower().replace(' ', '_')}_builds.csv")
-    output_file_tests = tests_dir.joinpath(f"{project.lower().replace(' ', '_')}_tests.csv")
-
     build_file_fields = ["job", "build_number", "result", "duration", "estimated_duration", \
             "revision_number", "commit_id", "commit_ts", "test_pass_count", "test_fail_count", "test_skip_count", \
                 "total_test_duration"]
 
-    test_file_fields = ["job", "build_number","package", "class","name", "duration", "status"]
-
     # Write both builds and tests data
     with open(output_file_builds, 'w+', newline="") as build_file:
-        with open(output_file_tests, 'w+', newline="") as test_file:
 
-            writer_build = csv.writer(build_file)
-            writer_test = csv.writer(test_file)
+        writer_build = csv.writer(build_file)
+        writer_build.writerow(build_file_fields)
 
-            writer_build.writerow(build_file_fields)
-            writer_test.writerow(test_file_fields)
-
+        if build_only:
             for job_data in jobs_data:
                 for build_data, test_data in job_data:
                     writer_build.writerow(build_data)
-                    
-                    for test_result in test_data:
-                        writer_test.writerow(test_result)
+
+        else:
+            with open(output_file_tests, 'w+', newline="") as test_file:
+
+                writer_test = csv.writer(test_file)
+                writer_test.writerow(test_file_fields)
+
+                for job_data in jobs_data:
+                    for build_data, test_data in job_data:
+                        writer_build.writerow(build_data)
+                        
+                        for test_result in test_data:
+                            writer_test.writerow(test_result)
 
 
 def get_jobs_info(project, server, first_load, sub_project=False):
@@ -245,7 +253,7 @@ def get_jobs_info(project, server, first_load, sub_project=False):
 
     return jobs_info
 
-def process_project(project, server, first_load=False, output_dir_str ='./data'):
+def process_project(project, server, first_load=False, output_dir_str ='./data', build_only = False):
 
     jobs_data = []
 
@@ -270,33 +278,43 @@ def process_project(project, server, first_load=False, output_dir_str ='./data')
                 print(f"JenkinsException: {e}")
 
         # job_data contains both build and test data
-        job_data = get_data(builds_data, fullName, server)
+        job_data = get_data(builds_data, fullName, server, build_only)
     
         jobs_data.append(job_data)
     
-    write_to_csv((project,jobs_data), output_dir_str)
+    write_to_csv((project,jobs_data), output_dir_str, build_only)
 
 if __name__ == "__main__":
 
-    start = time.time()
+    ap = argparse.ArgumentParser()
 
+    ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', 
+        help="Output file format, either csv or parquet")
+    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'.")
+    ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load.")
+    ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
+    ap.add_argument("-p","--projects", default = './projects.csv', help = "Path to a file containing names of all projects to load.")
+
+    args = vars(ap.parse_args())
+
+    build_only = args['build_only']
+    output_path = args['output_path']
+    projects_path = args['projects']
+
+
+    start = time.time()
     server = jenkins.Jenkins('https://builds.apache.org/')
-    output_dir_str = './data'
 
     # Sometimes connecting to Jenkins server is banned due to ill use of API
     # Test connection to server
     print(f"Jenkins-API version: {server.get_version()}")
 
-    if len(sys.argv)  != 2:
-        print("Provide also path to one csv file with projects' names in it.") 
-        sys.exit(1)
-
-    projects = get_projects(sys.argv[1])    
+    projects = get_projects(projects_path)    
     print(projects)
 
     for project in projects:
         print(f"Processing: {project}")
-        process_project(project, server, first_load = True, output_dir_str = output_dir_str)
+        process_project(project, server, first_load = True, output_dir_str = output_path, build_only= build_only)
 
     end = time.time()
     print(f"Time total: {end-start}")
