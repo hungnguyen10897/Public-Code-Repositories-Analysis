@@ -9,8 +9,117 @@ import argparse
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
+DTYPE_DICT = {'project': 'object',
+    'version': 'object',
+    'revision': 'object',
+    'complexity': 'Int64',
+    'class_complexity': 'object',
+    'function_complexity': 'object',
+    'file_complexity': 'float64',
+    'function_complexity_distribution': 'object',
+    'file_complexity_distribution': 'object',
+    'complexity_in_classes': 'object',
+    'complexity_in_functions': 'object',
+    'cognitive_complexity': 'Int64',
+    'test_errors': 'Int64',
+    'skipped_tests': 'Int64',
+    'test_failures': 'Int64',
+    'tests': 'Int64',
+    'test_execution_time': 'object',
+    'test_success_density': 'float64',
+    'coverage': 'float64',
+    'lines_to_cover': 'Int64',
+    'uncovered_lines': 'Int64',
+    'line_coverage': 'float64',
+    'conditions_to_cover': 'Int64',
+    'uncovered_conditions': 'Int64',
+    'branch_coverage': 'float64',
+    'new_coverage': 'object',
+    'new_lines_to_cover': 'object',
+    'new_uncovered_lines': 'object',
+    'new_line_coverage': 'object',
+    'new_conditions_to_cover': 'object',
+    'new_uncovered_conditions': 'object',
+    'new_branch_coverage': 'object',
+    'executable_lines_data': 'object',
+    'public_api': 'object',
+    'public_documented_api_density': 'object',
+    'public_undocumented_api': 'object',
+    'duplicated_lines': 'Int64',
+    'duplicated_lines_density': 'float64',
+    'duplicated_blocks': 'Int64',
+    'duplicated_files': 'Int64',
+    'duplications_data': 'object',
+    'new_duplicated_lines': 'object',
+    'new_duplicated_blocks': 'object',
+    'new_duplicated_lines_density': 'object',
+    'quality_profiles': 'object',
+    'quality_gate_details': 'object',
+    'violations': 'Int64',
+    'blocker_violations': 'Int64',
+    'critical_violations': 'Int64',
+    'major_violations': 'Int64',
+    'minor_violations': 'Int64',
+    'info_violations': 'Int64',
+    'new_violations': 'object',
+    'new_blocker_violations': 'object',
+    'new_critical_violations': 'object',
+    'new_major_violations': 'object',
+    'new_minor_violations': 'object',
+    'new_info_violations': 'object',
+    'false_positive_issues': 'Int64',
+    'open_issues': 'Int64',
+    'reopened_issues': 'Int64',
+    'confirmed_issues': 'Int64',
+    'wont_fix_issues': 'Int64',
+    'sqale_index': 'Int64',
+    'sqale_rating': 'float64',
+    'development_cost': 'object',
+    'new_technical_debt': 'object',
+    'sqale_debt_ratio': 'float64',
+    'new_sqale_debt_ratio': 'float64',
+    'code_smells': 'Int64',
+    'new_code_smells': 'object',
+    'effort_to_reach_maintainability_rating_a': 'Int64',
+    'new_maintainability_rating': 'object',
+    'new_development_cost': 'float64',
+    'sonarjava_feedback': 'object',
+    'alert_status': 'object',
+    'bugs': 'Int64',
+    'new_bugs': 'object',
+    'reliability_remediation_effort': 'Int64',
+    'new_reliability_remediation_effort': 'object',
+    'reliability_rating': 'float64',
+    'new_reliability_rating': 'object',
+    'last_commit_date': 'object',
+    'vulnerabilities': 'Int64',
+    'new_vulnerabilities': 'object',
+    'security_remediation_effort': 'Int64',
+    'new_security_remediation_effort': 'object',
+    'security_rating': 'float64',
+    'new_security_rating': 'object',
+    'security_hotspots': 'Int64',
+    'new_security_hotspots': 'object',
+    'security_review_rating': 'float64',
+    'classes': 'Int64',
+    'ncloc': 'Int64',
+    'functions': 'Int64',
+    'comment_lines': 'Int64',
+    'comment_lines_density': 'float64',
+    'files': 'Int64',
+    'directories': 'object',
+    'lines': 'Int64',
+    'statements': 'Int64',
+    'generated_lines': 'object',
+    'generated_ncloc': 'object',
+    'ncloc_data': 'object',
+    'comment_lines_data': 'object',
+    'projects': 'object',
+    'ncloc_language_distribution': 'object',
+    'new_lines': 'object'}
 
-def query_server(type, iter = 1, project_key = None, metric_list = []):
+
+def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts = None):
 
     page_size = 200
     params = {'p' : iter, 'ps':page_size}
@@ -24,10 +133,14 @@ def query_server(type, iter = 1, project_key = None, metric_list = []):
 
     elif type == 'analyses':
         endpoint = SERVER + "api/project_analyses/search"
+        if from_ts:
+            params['from'] = from_ts
         params['project'] = project_key
 
     elif type == 'measures':
         endpoint = SERVER + "api/measures/search_history"
+        if from_ts:
+            params['from'] = from_ts
         params['component'] = project_key
         params['metrics'] = ','.join(metric_list)
 
@@ -58,9 +171,9 @@ def query_server(type, iter = 1, project_key = None, metric_list = []):
 
     if iter*page_size < total_num_elements:
         if type == 'measures':
-            element_list = concat_measures(element_list, query_server(type, iter+1, project_key))
+            element_list = concat_measures(element_list, query_server(type, iter+1, project_key, from_ts = from_ts))
         else:
-            element_list = element_list + query_server(type, iter+1, project_key)
+            element_list = element_list + query_server(type, iter+1, project_key, from_ts = from_ts)
     
     return element_list
 
@@ -155,8 +268,35 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
 def process_project(project, load, format, output_path, metrics_path = None ):
 
     project_key = project['key']
-    project_analyses = query_server('analyses', 1, project_key = project_key)
-    print(f"{project_key} - {len(project_analyses)} analyses")
+
+    output_path_format = Path(output_path).joinpath(format)
+    output_path_format.mkdir(parents=True, exist_ok=True)
+    file_path = output_path_format.joinpath(f"{project_key}.{format}")
+
+    max_ts_str = None
+    old_df = None
+
+    #Get latest timestamp stored
+    if format == 'csv':
+        try:
+            if load == 'incremental':
+                old_df = pd.read_csv(file_path.resolve(), dtype=DTYPE_DICT, parse_dates=['date'])
+                # TO_DO: Change nan to None ? Is it neccessary?
+                max_ts_str = old_df['date'].max().strftime(format = '%Y-%m-%d')
+            
+        except ValueError as e:
+            print(f"\t\tERROR: {e} when parsing {file_path} into DataFrame.")
+            max_ts_str = None
+
+        except FileNotFoundError as e:
+            print(f"\t\tWARNING: No .{format} file found for project {project_key} in output path for")
+            max_ts_str = None
+
+    elif format == 'parquet':
+        pass
+
+    project_analyses = query_server('analyses', 1, project_key = project_key, from_ts = max_ts_str)
+    print(f"\t\t{project_key} - {len(project_analyses)} analyses")
 
     if len(project_analyses) == 0:
         return
@@ -178,7 +318,7 @@ def process_project(project, load, format, output_path, metrics_path = None ):
     measures = []
     for i in range(0,len(metrics), 15):
         #Get measures
-        measures = measures + query_server('measures',1,project_key, metrics[i:i+15])
+        measures = measures + query_server('measures',1,project_key, metrics[i:i+15], from_ts= max_ts_str)
     
     measures.sort(key = lambda x: metrics_order_type[x['metric']][0])
 
@@ -192,17 +332,18 @@ def process_project(project, load, format, output_path, metrics_path = None ):
     columns_with_metrics, data_with_measures = extract_measures_value(measures, metrics_order_type, columns, data)
 
     #Create DF
-    df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
+    new_df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
+    result_df = pd.concat([new_df, old_df], ignore_index=True)
+    result_df.drop_duplicates(inplace=True)
 
-    output_path_format = output_path.joinpath(format)
-    output_path_format.mkdir(parents=True, exist_ok=True)
-    file_path = output_path_format.joinpath(f"{project_key}.{format}")
+    # Delete original file
+    if file_path.exists():
+        file_path.unlink()
 
     if format == "csv":
-        df.to_csv(path_or_buf= file_path, index=False, header=True)
+        result_df.to_csv(path_or_buf= file_path, index=False, header=True)
     elif format == "parquet":
-        df.to_parquet()
-
+        result_df.to_parquet()
 
 def write_metrics_file(metric_list):
     metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
@@ -238,9 +379,9 @@ if __name__ == "__main__":
     project_list = query_server(type='projects')
     project_list.sort(key = lambda x: x['key'])
 
-    print(f"Total: {len(project_list)} projects")
+    print(f"Total: {len(project_list)} projects - {load} load.")
     i = 0
     for project in project_list:
-        print(f"\t{i}: ", end = "")
+        print(f"\t{i}: ")
         process_project(project, load, format, output_path)
         i += 1
