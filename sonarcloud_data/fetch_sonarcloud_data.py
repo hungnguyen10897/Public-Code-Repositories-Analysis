@@ -276,24 +276,22 @@ def process_project(project, load, format, output_path, metrics_path = None ):
     max_ts_str = None
     old_df = None
 
-    #Get latest timestamp stored
-    if format == 'csv':
+    #Get latest timestamp stored if load is 'incremental'
+    if load == 'incremental':
         try:
-            if load == 'incremental':
+            if format == 'csv':
                 old_df = pd.read_csv(file_path.resolve(), dtype=DTYPE_DICT, parse_dates=['date'])
-                # TO_DO: Change nan to None ? Is it neccessary?
-                max_ts_str = old_df['date'].max().strftime(format = '%Y-%m-%d')
-            
+            elif format == 'parquet':
+                old_df = pd.read_parquet(path = file_path.resolve())
+            # TO_DO: Change nan to None ? Is it neccessary?
+            max_ts_str = old_df['date'].max().strftime(format = '%Y-%m-%d')
         except ValueError as e:
             print(f"\t\tERROR: {e} when parsing {file_path} into DataFrame.")
             max_ts_str = None
 
         except FileNotFoundError as e:
-            print(f"\t\tWARNING: No .{format} file found for project {project_key} in output path for")
+            # print(f"\t\tWARNING: No .{format} file found for project {project_key} in output path for")
             max_ts_str = None
-
-    elif format == 'parquet':
-        pass
 
     project_analyses = query_server('analyses', 1, project_key = project_key, from_ts = max_ts_str)
     print(f"\t\t{project_key} - {len(project_analyses)} analyses")
@@ -343,7 +341,7 @@ def process_project(project, load, format, output_path, metrics_path = None ):
     if format == "csv":
         result_df.to_csv(path_or_buf= file_path, index=False, header=True)
     elif format == "parquet":
-        result_df.to_parquet()
+        result_df.to_parquet(fname= file_path, index=False)
 
 def write_metrics_file(metric_list):
     metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
