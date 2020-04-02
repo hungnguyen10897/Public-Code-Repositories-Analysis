@@ -8,6 +8,31 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import time
 import argparse
+import pandas as pd
+from collections import OrderedDict
+
+BUILD_DATA_COLUMNS = [
+    "job",
+    "build_number",
+    "result",
+    "duration",
+    "estimated_duration",
+    "revision_number",
+    "commit_id",
+    "commit_ts",
+    "test_pass_count",
+    "test_fail_count",
+    "test_skip_count",
+    "total_test_duration"]
+
+TEST_DATA_COLUMNS = [
+    "job",
+    "build_number",
+    "package",
+    "class",
+    "name",
+    "duration",
+    "status"]
 
 def get_projects(path):
     projects = []
@@ -69,7 +94,8 @@ def process_date_time(time_str):
 
 def get_data(builds, job_name , server, build_only):
     
-    builds_tests_data = []
+    builds_data = []
+    tests_data = []
 
     for build in builds:
 
@@ -173,51 +199,51 @@ def get_data(builds, job_name , server, build_only):
             build_data = (job_name, build_number, build_result, build_duration, build_estimated_duration, \
                     revision_number, None, None, build_pass_count, build_fail_count, build_skip_count, build_total_test_duration)
         
-        builds_tests_data.append((build_data, test_result))
+        builds_data.append(build_data)
+        tests_data = tests_data + test_result
 
-    return builds_tests_data
+    return builds_data, tests_data
 
 def write_to_csv(project_data, output_dir_str, build_only):
     
-    project, jobs_data = project_data
+    project, df_builds, df_tests = project_data
     output_dir = Path(output_dir_str)
 
     if not build_only:
         tests_dir = output_dir.joinpath('tests')
         tests_dir.mkdir(parents=True, exist_ok=True)
         output_file_tests = tests_dir.joinpath(f"{project.lower().replace(' ', '_')}_tests.csv")
-        test_file_fields = ["job", "build_number","package", "class","name", "duration", "status"]
+        df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True)
+
 
     builds_dir = output_dir.joinpath('builds')
     builds_dir.mkdir(parents=True, exist_ok=True)
     output_file_builds = builds_dir.joinpath(f"{project.lower().replace(' ', '_')}_builds.csv")
-    build_file_fields = ["job", "build_number", "result", "duration", "estimated_duration", \
-            "revision_number", "commit_id", "commit_ts", "test_pass_count", "test_fail_count", "test_skip_count", \
-                "total_test_duration"]
+    df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True)
 
-    # Write both builds and tests data
-    with open(output_file_builds, 'w+', newline="") as build_file:
+    # # Write both builds and tests data
+    # with open(output_file_builds, 'w+', newline="") as build_file:
 
-        writer_build = csv.writer(build_file)
-        writer_build.writerow(build_file_fields)
+    #     writer_build = csv.writer(build_file)
+    #     writer_build.writerow(BUILD_DATA_COLUMNS)
 
-        if build_only:
-            for job_data in jobs_data:
-                for build_data, test_data in job_data:
-                    writer_build.writerow(build_data)
+    #     if build_only:
+    #         for job_data in jobs_data:
+    #             for build_data, test_data in job_data:
+    #                 writer_build.writerow(build_data)
 
-        else:
-            with open(output_file_tests, 'w+', newline="") as test_file:
+    #     else:
+    #         with open(output_file_tests, 'w+', newline="") as test_file:
 
-                writer_test = csv.writer(test_file)
-                writer_test.writerow(test_file_fields)
+    #             writer_test = csv.writer(test_file)
+    #             writer_test.writerow(TEST_DATA_COLUMNS)
 
-                for job_data in jobs_data:
-                    for build_data, test_data in job_data:
-                        writer_build.writerow(build_data)
+    #             for job_data in jobs_data:
+    #                 for build_data, test_data in job_data:
+    #                     writer_build.writerow(build_data)
                         
-                        for test_result in test_data:
-                            writer_test.writerow(test_result)
+    #                     for test_result in test_data:
+    #                         writer_test.writerow(test_result)
 
 
 def get_jobs_info(project, server, first_load, sub_project=False):
@@ -255,7 +281,8 @@ def get_jobs_info(project, server, first_load, sub_project=False):
 
 def process_project(project, server, first_load=False, output_dir_str ='./data', build_only = False):
 
-    jobs_data = []
+    jobs_builds_data = []
+    jobs_tests_data = []
 
     for job_info in get_jobs_info(project, server, first_load):
 
@@ -267,33 +294,36 @@ def process_project(project, server, first_load=False, output_dir_str ='./data',
             if scm_class in ['SubversionSCM','NullSCM']:
                 continue
 
-        builds_data = []
+        builds = []
         #get builds info:
         for build in job_info['builds']:
             build_number = build['number']
             try:
                 build_data = server.get_build_info(fullName, build_number, depth=1)
-                builds_data.append(build_data)
+                builds.append(build_data)
             except JenkinsException as e:
                 print(f"JenkinsException: {e}")
 
         # job_data contains both build and test data
-        job_data = get_data(builds_data, fullName, server, build_only)
+        builds_data, tests_data = get_data(builds, fullName, server, build_only)
     
-        jobs_data.append(job_data)
+        jobs_builds_data = jobs_builds_data + builds_data
+        jobs_tests_data = jobs_tests_data + tests_data
+
+    df_builds = pd.DataFrame(data = jobs_builds_data, columns=BUILD_DATA_COLUMNS)
+    df_tests = pd.DataFrame(data = jobs_tests_data, columns=TEST_DATA_COLUMNS)
     
-    write_to_csv((project,jobs_data), output_dir_str, build_only)
+    write_to_csv((project,df_builds, df_tests), output_dir_str, build_only)
 
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
 
-    ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', 
-        help="Output file format, either csv or parquet")
-    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'.")
+    ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
+    ap.add_argument("-o","--output-path", default='./data3' , help="Path to output file directory, default is './data'.")
     ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load.")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
-    ap.add_argument("-p","--projects", default = './projects.csv', help = "Path to a file containing names of all projects to load.")
+    ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load.")
 
     args = vars(ap.parse_args())
 
