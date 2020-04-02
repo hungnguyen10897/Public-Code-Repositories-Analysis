@@ -204,21 +204,21 @@ def get_data(builds, job_name , server, build_only):
 
     return builds_data, tests_data
 
-def write_to_csv(project_data, output_dir_str, build_only):
+def write_to_file(job_data, output_dir_str, build_only):
     
-    project, df_builds, df_tests = project_data
+    job_name, df_builds, df_tests = job_data
     output_dir = Path(output_dir_str)
 
     if not build_only and df_tests is not None:
         tests_dir = output_dir.joinpath('tests')
         tests_dir.mkdir(parents=True, exist_ok=True)
-        output_file_tests = tests_dir.joinpath(f"{project.lower().replace(' ', '_')}_tests.csv")
+        output_file_tests = tests_dir.joinpath(f"{job_name.lower().replace(' ', '_')}_tests.csv")
         df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True)
 
     if df_builds is not None:
         builds_dir = output_dir.joinpath('builds')
         builds_dir.mkdir(parents=True, exist_ok=True)
-        output_file_builds = builds_dir.joinpath(f"{project.lower().replace(' ', '_')}_builds.csv")
+        output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_')}_builds.csv")
         df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True)
 
 def get_jobs_info(project, server, first_load, sub_project=False):
@@ -246,7 +246,6 @@ def get_jobs_info(project, server, first_load, sub_project=False):
         else:
             # number of builds = 100 means there may be more builds to be fetched => fetched again!
             if first_load and len(job_info['builds']) == 100 and not sub_project:
-
                 jobs_info.append(server.get_job_info(job_info['fullName'], depth= 0, fetch_all_builds = True))
 
             else:
@@ -254,12 +253,9 @@ def get_jobs_info(project, server, first_load, sub_project=False):
 
     return jobs_info
 
-def process_project(project, server, first_load=False, output_dir_str ='./data', build_only = False):
+def project_job(project_name, server, first_load=False, output_dir_str ='./data', build_only = False):
 
-    jobs_builds_data = []
-    jobs_tests_data = []
-
-    for job_info in get_jobs_info(project, server, first_load):
+    for job_info in get_jobs_info(project_name, server, first_load):
 
         fullName = job_info['fullName']
 
@@ -281,35 +277,38 @@ def process_project(project, server, first_load=False, output_dir_str ='./data',
 
         # job_data contains both build and test data
         builds_data, tests_data = get_data(builds, fullName, server, build_only)
-    
-        jobs_builds_data = jobs_builds_data + builds_data
-        jobs_tests_data = jobs_tests_data + tests_data
 
-    df_builds = None
-    if jobs_builds_data != []:
-        df_builds = pd.DataFrame(data = jobs_builds_data, columns=BUILD_DATA_COLUMNS)
+        df_builds = None
+        if builds_data != []:
+            df_builds = pd.DataFrame(data = builds_data, columns=BUILD_DATA_COLUMNS)
 
-    df_tests = None    
-    if jobs_tests_data != []:
-        df_tests = pd.DataFrame(data = jobs_tests_data, columns=TEST_DATA_COLUMNS)
-    
-    write_to_csv((project,df_builds, df_tests), output_dir_str, build_only)
+        df_tests = None    
+        if tests_data != []:
+            df_tests = pd.DataFrame(data = tests_data, columns=TEST_DATA_COLUMNS)
+       
+        write_to_file((fullName,df_builds, df_tests), output_dir_str, build_only)
 
 if __name__ == "__main__":
 
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
 
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
-    ap.add_argument("-o","--output-path", default='./data3' , help="Path to output file directory, default is './data'.")
-    ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load.")
+    ap.add_argument("-o","--output-path", default='./data4' , help="Path to output file directory, default is './data'")
+    ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
-    ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load.")
+    ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
+    ap.add_argument("-a","--all", action="store_true", help = "Load data from all projects available on the server, this will ignore -p argument")
 
     args = vars(ap.parse_args())
 
     build_only = args['build_only']
     output_path = args['output_path']
     projects_path = args['projects']
+    all = args['all']
+
+    if (projects_path is None and all is False) or (projects_path is not None and all is True):
+        print("Provide either -a to load build data of all projects from Jenkins server or -p with a file containg project's names")
+        sys.exit(1)
 
 
     start = time.time()
@@ -319,12 +318,18 @@ if __name__ == "__main__":
     # Test connection to server
     print(f"Jenkins-API version: {server.get_version()}")
 
-    projects = get_projects(projects_path)    
-    print(projects)
+    if not all:
+        print("Processing projects.")
+        project_names = get_projects(projects_path)    
+        print(project_names)
 
-    for project in projects:
-        print(f"Processing: {project}")
-        process_project(project, server, first_load = True, output_dir_str = output_path, build_only= build_only)
-
+        for project_name in project_names:
+            print(f"Project: {project_name}")
+            project_job(project_name, server, first_load = True, output_dir_str = output_path, build_only= build_only)
+    
+    else:
+        print("Processing all jobs.")
+        pass
+    
     end = time.time()
     print(f"Time total: {end-start}")
