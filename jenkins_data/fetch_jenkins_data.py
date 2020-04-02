@@ -209,42 +209,17 @@ def write_to_csv(project_data, output_dir_str, build_only):
     project, df_builds, df_tests = project_data
     output_dir = Path(output_dir_str)
 
-    if not build_only:
+    if not build_only and df_tests is not None:
         tests_dir = output_dir.joinpath('tests')
         tests_dir.mkdir(parents=True, exist_ok=True)
         output_file_tests = tests_dir.joinpath(f"{project.lower().replace(' ', '_')}_tests.csv")
         df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True)
 
-
-    builds_dir = output_dir.joinpath('builds')
-    builds_dir.mkdir(parents=True, exist_ok=True)
-    output_file_builds = builds_dir.joinpath(f"{project.lower().replace(' ', '_')}_builds.csv")
-    df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True)
-
-    # # Write both builds and tests data
-    # with open(output_file_builds, 'w+', newline="") as build_file:
-
-    #     writer_build = csv.writer(build_file)
-    #     writer_build.writerow(BUILD_DATA_COLUMNS)
-
-    #     if build_only:
-    #         for job_data in jobs_data:
-    #             for build_data, test_data in job_data:
-    #                 writer_build.writerow(build_data)
-
-    #     else:
-    #         with open(output_file_tests, 'w+', newline="") as test_file:
-
-    #             writer_test = csv.writer(test_file)
-    #             writer_test.writerow(TEST_DATA_COLUMNS)
-
-    #             for job_data in jobs_data:
-    #                 for build_data, test_data in job_data:
-    #                     writer_build.writerow(build_data)
-                        
-    #                     for test_result in test_data:
-    #                         writer_test.writerow(test_result)
-
+    if df_builds is not None:
+        builds_dir = output_dir.joinpath('builds')
+        builds_dir.mkdir(parents=True, exist_ok=True)
+        output_file_builds = builds_dir.joinpath(f"{project.lower().replace(' ', '_')}_builds.csv")
+        df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True)
 
 def get_jobs_info(project, server, first_load, sub_project=False):
     # first_load: True if need to take all builds
@@ -310,8 +285,13 @@ def process_project(project, server, first_load=False, output_dir_str ='./data',
         jobs_builds_data = jobs_builds_data + builds_data
         jobs_tests_data = jobs_tests_data + tests_data
 
-    df_builds = pd.DataFrame(data = jobs_builds_data, columns=BUILD_DATA_COLUMNS)
-    df_tests = pd.DataFrame(data = jobs_tests_data, columns=TEST_DATA_COLUMNS)
+    df_builds = None
+    if jobs_builds_data != []:
+        df_builds = pd.DataFrame(data = jobs_builds_data, columns=BUILD_DATA_COLUMNS)
+
+    df_tests = None    
+    if jobs_tests_data != []:
+        df_tests = pd.DataFrame(data = jobs_tests_data, columns=TEST_DATA_COLUMNS)
     
     write_to_csv((project,df_builds, df_tests), output_dir_str, build_only)
 
