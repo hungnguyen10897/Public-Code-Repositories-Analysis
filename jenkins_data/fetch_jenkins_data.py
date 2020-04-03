@@ -225,17 +225,16 @@ def write_to_file(job_data, output_dir_str, build_only):
         output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds.csv")
         df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True)
 
-def get_jobs_info(project_name, server, first_load, is_job):
-    # first_load: True to take all builds
+def get_jobs_info(name, server, is_job, output_dir_str = './data'):
 
     jobs_info = []
 
     if is_job:
-        jobs = [server.get_job_info(project_name, depth= 0, fetch_all_builds = first_load)]
+        jobs = [server.get_job_info(name, depth= 0, fetch_all_builds = False)]
 
     # Not a job but a project's name
     else:
-        regex = re.compile(f"^.*{project_name}.*$", re.IGNORECASE)
+        regex = re.compile(f"^.*{name}.*$", re.IGNORECASE)
         jobs = server.get_job_info_regex(regex, folder_depth=0, depth=0)
     
     for job_info in jobs:
@@ -248,15 +247,38 @@ def get_jobs_info(project_name, server, first_load, is_job):
                     fullName = sub_job['fullName']
                 else:
                     fullName = f"{job_name}/{sub_job['name']}"
-                jobs_info += get_jobs_info(fullName, server, first_load, True)
+                jobs_info += get_jobs_info(fullName, server, True, output_dir_str= output_dir_str)
 
         else:
-            # number of builds = 100 means there may be more builds to be fetched => fetched again!
-            if first_load and len(job_info['builds']) == 100 and not is_job:
-                jobs_info.append(server.get_job_info(job_name, depth= 0, fetch_all_builds = True))
+            num_builds = len(job_info['builds'])          # 0 <= num_builds <= 100
+            if num_builds == 0:
+                continue
+
+            diff = None
+            # Get latest build on file
+            df = None
+            p = Path(output_dir_str).joinpath("builds").joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds.csv")
+            if p.exists():
+                df = pd.read_csv(p.resolve(), header=0)
+
+                latest_build_on_file = df['build_number'].max()
+                lastest_build_on_server = job_info['lastBuild']['number']
+                diff = lastest_build_on_server - latest_build_on_file
+
+                if diff <= 0:
+                    continue
+                elif diff >= 100:
+                    full_job_info = server.get_job_info(job_name, depth= 0, fetch_all_builds = True)
+                    jobs_info.append((full_job_info, df))
+                else:
+                    jobs_info.append((job_info, df))
 
             else:
-                jobs_info.append(job_info)
+                if num_builds == 100:
+                    full_job_info = server.get_job_info(job_name, depth= 0, fetch_all_builds = True)
+                    jobs_info.append((full_job_info, df))
+                else:
+                    jobs_info.append((job_info, df))
 
     return jobs_info
 
@@ -275,7 +297,12 @@ def get_all_job_names(server):
 
 def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./data', build_only = False):
 
-    for job_info in get_jobs_info(project_name, server, first_load, is_job):
+    for job_info, df in get_jobs_info(project_name, server, is_job, output_dir_str= output_dir_str):
+
+        # Get latest build number on file
+        latest_build_on_file = -1
+        if df:
+            latest_build_on_file = df['build'].max()
 
         fullName = job_info['fullName']
         print(f"\tJob: {fullName}")
@@ -290,6 +317,8 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
         #get builds info:
         for build in job_info['builds']:
             build_number = build['number']
+            if build_number <= latest_build_on_file:
+                continue
             try:
                 build_data = server.get_build_info(fullName, build_number, depth=1)
                 builds.append(build_data)
@@ -314,7 +343,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
 
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
-    ap.add_argument("-o","--output-path", default='./data3' , help="Path to output file directory, default is './data'")
+    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'")
     ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
     ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
