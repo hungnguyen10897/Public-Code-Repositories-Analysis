@@ -155,7 +155,7 @@ def get_data(builds, job_name , server, build_only):
 
         if not test_report:
 
-            print(f"WARNING: No test report for {job_name} - {str(build_number)}")
+            print(f"WARNING: No test report for {job_name} - build {str(build_number)}")
             build_fail_count = None
             build_pass_count = None
             build_skip_count = None
@@ -278,7 +278,7 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
     for job_info in get_jobs_info(project_name, server, first_load, is_job):
 
         fullName = job_info['fullName']
-        print(f"Job: {fullName}")
+        print(f"\tJob: {fullName}")
 
         # 'scm' field checking
         if 'scm' in job_info and '_class' in job_info['scm']:
@@ -314,7 +314,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
 
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
-    ap.add_argument("-o","--output-path", default='./data4' , help="Path to output file directory, default is './data'")
+    ap.add_argument("-o","--output-path", default='./data3' , help="Path to output file directory, default is './data'")
     ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
     ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
@@ -339,10 +339,13 @@ if __name__ == "__main__":
         names = get_projects(projects_path)    
         print(names)
     else:
-        print("Processing all jobs.")
         names = get_all_job_names(server)
+        print(f"Processing all {len(names)} jobs.")
 
+    i = 0
     for name in names:
+        print(f"#{i}")
+        i += 1
         process_jobs(name, all, server, True, output_dir_str = output_path, build_only= build_only)
 
     end = time.time()
