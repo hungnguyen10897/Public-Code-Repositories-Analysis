@@ -35,8 +35,12 @@ TEST_DATA_COLUMNS = [
     "status"]
 
 def get_projects(path):
+    p = Path(path)
     projects = []
-    with open(path, 'r') as f:
+    if not p.exists():
+        print("Projects file path {p.resolve()} does not exist. Exiting")
+        sys.exit(1)
+    with open(p.resolve(), 'r') as f:
         for line in f:
             project_name = line.strip().strip("\"")
             projects.append(project_name)
@@ -212,52 +216,69 @@ def write_to_file(job_data, output_dir_str, build_only):
     if not build_only and df_tests is not None:
         tests_dir = output_dir.joinpath('tests')
         tests_dir.mkdir(parents=True, exist_ok=True)
-        output_file_tests = tests_dir.joinpath(f"{job_name.lower().replace(' ', '_')}_tests.csv")
+        output_file_tests = tests_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_tests.csv")
         df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True)
 
     if df_builds is not None:
         builds_dir = output_dir.joinpath('builds')
         builds_dir.mkdir(parents=True, exist_ok=True)
-        output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_')}_builds.csv")
+        output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds.csv")
         df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True)
 
-def get_jobs_info(project, server, first_load, sub_project=False):
-    # first_load: True if need to take all builds
+def get_jobs_info(project_name, server, first_load, is_job):
+    # first_load: True to take all builds
 
     jobs_info = []
 
-    if sub_project:
-        jobs = [server.get_job_info(project, depth= 0, fetch_all_builds = first_load)]
+    if is_job:
+        jobs = [server.get_job_info(project_name, depth= 0, fetch_all_builds = first_load)]
 
-    # Not a sub_project
+    # Not a job but a project's name
     else:
-
-        regex = re.compile(f"^.*{project}.*$", re.IGNORECASE)
+        regex = re.compile(f"^.*{project_name}.*$", re.IGNORECASE)
         jobs = server.get_job_info_regex(regex, folder_depth=0, depth=0)
-        
+    
     for job_info in jobs:
 
         class_ = job_info['_class'].split('.')[-1]
+        job_name = job_info['fullName']
         if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
             for sub_job in job_info['jobs']:
-                fullName = sub_job['fullName']
+                if 'fullName' in sub_job:
+                    fullName = sub_job['fullName']
+                else:
+                    fullName = f"{job_name}/{sub_job['name']}"
                 jobs_info += get_jobs_info(fullName, server, first_load, True)
 
         else:
             # number of builds = 100 means there may be more builds to be fetched => fetched again!
-            if first_load and len(job_info['builds']) == 100 and not sub_project:
-                jobs_info.append(server.get_job_info(job_info['fullName'], depth= 0, fetch_all_builds = True))
+            if first_load and len(job_info['builds']) == 100 and not is_job:
+                jobs_info.append(server.get_job_info(job_name, depth= 0, fetch_all_builds = True))
 
             else:
                 jobs_info.append(job_info)
 
     return jobs_info
 
-def project_job(project_name, server, first_load=False, output_dir_str ='./data', build_only = False):
+def get_all_job_names(server):
+    jobs = server.get_all_jobs(folder_depth=2)
+    job_names = []
+    for job in jobs:
+        class_ = job['_class'].split('.')[-1]
+        if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
+            continue
+        else:
+            name = job['name']
+            job_names.append(name)
+    return job_names
 
-    for job_info in get_jobs_info(project_name, server, first_load):
+
+def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./data', build_only = False):
+
+    for job_info in get_jobs_info(project_name, server, first_load, is_job):
 
         fullName = job_info['fullName']
+        print(f"Job: {fullName}")
 
         # 'scm' field checking
         if 'scm' in job_info and '_class' in job_info['scm']:
@@ -297,7 +318,7 @@ if __name__ == "__main__":
     ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
     ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
-    ap.add_argument("-a","--all", action="store_true", help = "Load data from all projects available on the server, this will ignore -p argument")
+    ap.add_argument("-a","--all", action="store_true", help = "Load data from all jobs available on the server, this will ignore -p argument")
 
     args = vars(ap.parse_args())
 
@@ -305,11 +326,6 @@ if __name__ == "__main__":
     output_path = args['output_path']
     projects_path = args['projects']
     all = args['all']
-
-    if (projects_path is None and all is False) or (projects_path is not None and all is True):
-        print("Provide either -a to load build data of all projects from Jenkins server or -p with a file containg project's names")
-        sys.exit(1)
-
 
     start = time.time()
     server = jenkins.Jenkins('https://builds.apache.org/')
@@ -320,16 +336,14 @@ if __name__ == "__main__":
 
     if not all:
         print("Processing projects.")
-        project_names = get_projects(projects_path)    
-        print(project_names)
-
-        for project_name in project_names:
-            print(f"Project: {project_name}")
-            project_job(project_name, server, first_load = True, output_dir_str = output_path, build_only= build_only)
-    
+        names = get_projects(projects_path)    
+        print(names)
     else:
         print("Processing all jobs.")
-        pass
-    
+        names = get_all_job_names(server)
+
+    for name in names:
+        process_jobs(name, all, server, True, output_dir_str = output_path, build_only= build_only)
+
     end = time.time()
     print(f"Time total: {end-start}")
