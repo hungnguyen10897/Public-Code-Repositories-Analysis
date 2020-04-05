@@ -265,7 +265,7 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
     
     return columns, data
 
-def process_project(project, load, format, output_path, metrics_path = None ):
+def process_project(project, format, output_path, metrics_path = None ):
 
     project_key = project['key']
 
@@ -276,8 +276,7 @@ def process_project(project, load, format, output_path, metrics_path = None ):
     max_ts_str = None
     old_df = None
 
-    #Get latest timestamp stored if load is 'incremental'
-    if load == 'incremental':
+    if file_path.exists():
         try:
             if format == 'csv':
                 old_df = pd.read_csv(file_path.resolve(), dtype=DTYPE_DICT, parse_dates=['date'])
@@ -364,12 +363,12 @@ if __name__ == "__main__":
         help="Output file format. Can either be csv or parquet")
 
     ap.add_argument("-o","--output-path", default='./sonar_data' , help="Path to output file directory.")
-    ap.add_argument("-l","--load", choices = ['first', 'incremental'], default='incremental' , help="Path to output file directory.")
+    # ap.add_argument("-l","--load", choices = ['first', 'incremental'], default='incremental' , help="Path to output file directory.")
 
     args = vars(ap.parse_args())
     format = args['format']
     output_path = args['output_path']
-    load = args['load']
+    # load = args['load']
 
     # Write all metrics to a file
     # write_metrics_file(query_server(type='metrics'))
@@ -377,9 +376,9 @@ if __name__ == "__main__":
     project_list = query_server(type='projects')
     project_list.sort(key = lambda x: x['key'])
 
-    print(f"Total: {len(project_list)} projects - {load} load.")
+    print(f"Total: {len(project_list)} projects.")
     i = 0
     for project in project_list:
         print(f"\t{i}: ")
-        process_project(project, load, format, output_path)
+        process_project(project, format, output_path)
         i += 1
