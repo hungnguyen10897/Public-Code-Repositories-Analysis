@@ -12,3 +12,7 @@ docker-compose up
 # in directory 'superset'
 docker-compose up
 
+# Improvements:
+- Use concurrency to speed up fetching jenkins data
+- Actually implementing incremental load
+:
