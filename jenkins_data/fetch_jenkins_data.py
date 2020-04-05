@@ -145,17 +145,12 @@ def get_data(builds, job_name , server, build_only):
                     else:
                         commit_ids_ts[item['commitId']] = None
 
-            # if len(commit_ids_ts) != 1:
-            #     print(f"WARNING: {len(commit_ids_ts)} commits ids found for the build \
-            #         {build['fullDisplayName']}")
-
         # Get general test data:
         test_report = server.get_build_test_report(job_name , build_number, depth=0)
         test_result = []
 
         if not test_report:
-
-            print(f"WARNING: No test report for {job_name} - build {str(build_number)}")
+            # print(f"WARNING: No test report for {job_name} - build {str(build_number)}")
             build_fail_count = None
             build_pass_count = None
             build_skip_count = None
@@ -175,7 +170,7 @@ def get_data(builds, job_name , server, build_only):
             # Get specific test data:
             build_total_test_duration = None
             test_report_class = test_report['_class'].split('.')[-1]
-            if test_report_class == "SurefireAggregatedReport":
+            if test_report_class in ["SurefireAggregatedReport", "MatrixTestResult"]:
 
                 for child_report in test_report['childReports']:
                     duration, child_test_result = extract_test_data(child_report['result'], job_name, build_number, build_only)
@@ -294,24 +289,24 @@ def get_all_job_names(server):
             job_names.append(name)
     return job_names
 
-
 def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./data', build_only = False):
 
-    for job_info, df in get_jobs_info(project_name, server, is_job, output_dir_str= output_dir_str):
+    for job_info, old_builds_df in get_jobs_info(project_name, server, is_job, output_dir_str= output_dir_str):
 
         # Get latest build number on file
         latest_build_on_file = -1
-        if df:
-            latest_build_on_file = df['build'].max()
+        if old_builds_df is not None:
+            latest_build_on_file = old_builds_df['build'].max()
 
         fullName = job_info['fullName']
         print(f"\tJob: {fullName}")
 
-        # 'scm' field checking
-        if 'scm' in job_info and '_class' in job_info['scm']:
-            scm_class = job_info['scm']['_class'].split('.')[-1]
-            if scm_class in ['SubversionSCM','NullSCM']:
-                continue
+        # # 'scm' field checking
+        # if 'scm' in job_info and '_class' in job_info['scm']:
+        #     scm_class = job_info['scm']['_class'].split('.')[-1]
+        #     if scm_class in ['SubversionSCM','NullSCM']:
+        #         print(f"SCM Class: {scm_class}")
+        #         continue
 
         builds = []
         #get builds info:
