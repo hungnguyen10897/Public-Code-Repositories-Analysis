@@ -350,7 +350,7 @@ if __name__ == "__main__":
 
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
     ap.add_argument("-o","--output-path", default='./data1' , help="Path to output file directory, default is './data'")
-    ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load")
+    # ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='incremental_load', help="First load or incremental load, same if no data is available")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
     ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
     ap.add_argument("-a","--all", action="store_true", help = "Load data from all jobs available on the server, this will ignore -p argument")
