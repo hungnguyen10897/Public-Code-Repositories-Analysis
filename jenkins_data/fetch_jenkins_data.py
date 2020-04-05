@@ -11,28 +11,28 @@ import argparse
 import pandas as pd
 from collections import OrderedDict
 
-BUILD_DATA_COLUMNS = [
-    "job",
-    "build_number",
-    "result",
-    "duration",
-    "estimated_duration",
-    "revision_number",
-    "commit_id",
-    "commit_ts",
-    "test_pass_count",
-    "test_fail_count",
-    "test_skip_count",
-    "total_test_duration"]
+BUILD_DATA_COLUMNS = OrderedDict({
+    "job" : "object",
+    "build_number" : "Int64",
+    "result" : "object",
+    "duration" : "Int64",
+    "estimated_duration" : "Int64",
+    "revision_number" : "object",
+    "commit_id" : "object",
+    "commit_ts" : "object",
+    "test_pass_count" : "Int64",
+    "test_fail_count" : "Int64",
+    "test_skip_count" : "Int64",
+    "total_test_duration" : "float64"})
 
-TEST_DATA_COLUMNS = [
-    "job",
-    "build_number",
-    "package",
-    "class",
-    "name",
-    "duration",
-    "status"]
+TEST_DATA_COLUMNS = OrderedDict({
+    "job" : "object",
+    "build_number" : "Int64",
+    "package" : "object",
+    "class" : "object",
+    "name" : "object",
+    "duration" : "float64",
+    "status" : "object"})
 
 def get_projects(path):
     p = Path(path)
@@ -203,7 +203,7 @@ def get_data(builds, job_name , server, build_only):
 
     return builds_data, tests_data
 
-def write_to_file(job_data, output_dir_str, build_only):
+def write_to_file(job_data, old_builds_df, output_dir_str, build_only):
     
     job_name, df_builds, df_tests = job_data
     output_dir = Path(output_dir_str)
@@ -212,15 +212,27 @@ def write_to_file(job_data, output_dir_str, build_only):
         tests_dir = output_dir.joinpath('tests')
         tests_dir.mkdir(parents=True, exist_ok=True)
         output_file_tests = tests_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_tests.csv")
-        df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True)
+
+        old_tests_df = None
+        if output_file_tests.exists():
+            old_tests_df = pd.read_csv(output_file_tests.resolve(), dtype=TEST_DATA_COLUMNS, header=0)
+            output_file_tests.unlink()
+
+        agg_tests_df = pd.concat([df_tests, old_tests_df], ignore_index = True)
+        agg_tests_df.to_csv(path_or_buf = output_file_tests, index=False, header=True)
 
     if df_builds is not None:
         builds_dir = output_dir.joinpath('builds')
         builds_dir.mkdir(parents=True, exist_ok=True)
         output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds.csv")
-        df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True)
 
-def get_jobs_info(name, server, is_job, output_dir_str = './data'):
+        if output_file_builds.exists():
+            output_file_builds.unlink()
+
+        agg_builds_df = pd.concat([df_builds, old_builds_df], ignore_index = True)
+        agg_builds_df.to_csv(path_or_buf = output_file_builds, index=False, header = True)
+
+def get_jobs_info(name, server, is_job, output_dir_str):
 
     jobs_info = []
 
@@ -254,7 +266,7 @@ def get_jobs_info(name, server, is_job, output_dir_str = './data'):
             df = None
             p = Path(output_dir_str).joinpath("builds").joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds.csv")
             if p.exists():
-                df = pd.read_csv(p.resolve(), header=0)
+                df = pd.read_csv(p.resolve(), dtype=BUILD_DATA_COLUMNS, parse_dates=['commit_ts'], header=0)
 
                 latest_build_on_file = df['build_number'].max()
                 lastest_build_on_server = job_info['lastBuild']['number']
@@ -296,7 +308,7 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
         # Get latest build number on file
         latest_build_on_file = -1
         if old_builds_df is not None:
-            latest_build_on_file = old_builds_df['build'].max()
+            latest_build_on_file = old_builds_df['build_number'].max()
 
         fullName = job_info['fullName']
         print(f"\tJob: {fullName}")
@@ -320,25 +332,24 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
             except JenkinsException as e:
                 print(f"JenkinsException: {e}")
 
-        # job_data contains both build and test data
         builds_data, tests_data = get_data(builds, fullName, server, build_only)
 
         df_builds = None
         if builds_data != []:
-            df_builds = pd.DataFrame(data = builds_data, columns=BUILD_DATA_COLUMNS)
+            df_builds = pd.DataFrame(data = builds_data, columns=list(BUILD_DATA_COLUMNS.keys()))
 
         df_tests = None    
         if tests_data != []:
-            df_tests = pd.DataFrame(data = tests_data, columns=TEST_DATA_COLUMNS)
+            df_tests = pd.DataFrame(data = tests_data, columns=list(TEST_DATA_COLUMNS.keys()))
        
-        write_to_file((fullName,df_builds, df_tests), output_dir_str, build_only)
+        write_to_file((fullName,df_builds, df_tests),old_builds_df, output_dir_str, build_only)
 
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
 
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
-    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'")
+    ap.add_argument("-o","--output-path", default='./data1' , help="Path to output file directory, default is './data'")
     ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='first_load', help="First load or incremental load")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
     ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
