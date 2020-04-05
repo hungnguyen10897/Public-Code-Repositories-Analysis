@@ -345,10 +345,19 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
         df_builds = None
         if builds_data != []:
             df_builds = pd.DataFrame(data = builds_data, columns=list(BUILD_DATA_COLUMNS.keys()))
+            # Explicitly cast to Int64 since if there are None in columns of int type, they will be implicitly casted to float64
+            df_builds = df_builds.astype({    
+                "build_number" : "Int64",
+                "duration" : "Int64",
+                "estimated_duration" : "Int64",
+                "test_pass_count" : "Int64",
+                "test_fail_count" : "Int64",
+                "test_skip_count" : "Int64"})
 
         df_tests = None    
         if tests_data != []:
             df_tests = pd.DataFrame(data = tests_data, columns=list(TEST_DATA_COLUMNS.keys()))
+            df_tests = df_tests.astype({"build_number" : "Int64"})
        
         write_to_file((fullName,df_builds, df_tests),old_builds_df, output_dir_str, build_only)
 
