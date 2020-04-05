@@ -117,16 +117,25 @@ def get_data(builds, job_name , server, build_only):
 
         # Get revision number
         revision_number = None
+        build_fail_count = None
+        build_pass_count = None
+        build_skip_count = None
 
         if 'actions' in build:
             for action in build['actions']:
                 if not action:
                     continue
 
+                # Get general test data, in case server.get_build_test_report() gets error or returns None
                 if action['_class'].split('.')[-1] == 'TestResultAction':
-                    fail_count = action['failCount']
-                    skip_count = action['skipCount']
-                    total_count = action['totalCount']
+                    build_fail_count = action['failCount']
+                    build_skip_count = action['skipCount']
+
+                    if 'passCount' in action:
+                        build_pass_count = action['passCount']
+
+                    if 'totalCount' in action:
+                        build_pass_count = action['totalCount'] - build_fail_count - build_skip_count
 
                 if action['_class'].split('.')[-1] == 'BuildData':
                     if 'lastBuiltRevision' in action:
@@ -145,18 +154,17 @@ def get_data(builds, job_name , server, build_only):
                     else:
                         commit_ids_ts[item['commitId']] = None
 
-        # Get general test data:
-        test_report = server.get_build_test_report(job_name , build_number, depth=0)
+        # Get specific test data:
+        try:
+            test_report = server.get_build_test_report(job_name , build_number, depth=0)
+        except JenkinsException as e:
+            print(f"ERROR: Exception upon getting build test report for '{job_name}' - build number {build_number} : {e}")
+            test_report = None
         test_result = []
 
-        if not test_report:
-            # print(f"WARNING: No test report for {job_name} - build {str(build_number)}")
-            build_fail_count = None
-            build_pass_count = None
-            build_skip_count = None
-            build_total_test_duration = None
-        
-        else:
+        build_total_test_duration = None
+
+        if test_report is not None:
 
             build_fail_count = test_report['failCount']
             build_skip_count = test_report['skipCount']
