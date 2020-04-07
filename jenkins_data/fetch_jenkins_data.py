@@ -245,7 +245,11 @@ def get_jobs_info(name, server, is_job, output_dir_str):
     jobs_info = []
 
     if is_job:
-        jobs = [server.get_job_info(name, depth= 0, fetch_all_builds = False)]
+        try:
+            jobs = [server.get_job_info(name, depth= 0, fetch_all_builds = False)]
+        except:
+            print("ERROR: exception thrown when querying job from server")
+            jobs = []
 
     # Not a job but a project's name
     else:
@@ -254,6 +258,7 @@ def get_jobs_info(name, server, is_job, output_dir_str):
     
     for job_info in jobs:
 
+        # For -p argument instead of -a
         class_ = job_info['_class'].split('.')[-1]
         job_name = job_info['fullName']
         if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
@@ -305,7 +310,7 @@ def get_all_job_names(server):
         if class_ in ['Folder', 'OrganizationFolder', 'WorkflowMultiBranchProject']:
             continue
         else:
-            name = job['name']
+            name = job['fullname']
             job_names.append(name)
     return job_names
 
