@@ -52,7 +52,7 @@ def extract_test_data(test_report, job_name, build_number, build_only):
     if not test_report:
         return (None,[])
 
-    test_duration = test_report['duration']
+    test_duration = None if 'duration' not in test_report else test_report['duration']
 
     if build_only:
         return (test_duration, [])
