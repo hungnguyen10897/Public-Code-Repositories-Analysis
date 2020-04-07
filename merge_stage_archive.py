@@ -158,7 +158,6 @@ def merge(file_directory, DTYPE):
         else:
             file.rename(archive_file)
 
-
 if __name__ == "__main__":
     
     ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")

@@ -14,10 +14,6 @@ services:
     networks:
       - PRA_net
 
-volumes:
-  db_home:
-    external: false
-
 networks:
   PRA_net:      
     external: true

@@ -11,4 +11,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         CREATE DATABASE superset;
         GRANT ALL PRIVILEGES ON DATABASE superset TO superset;
         ALTER USER superset WITH PASSWORD 'superset';
+
+	CREATE USER app;
+        CREATE DATABASE app;
+        GRANT ALL PRIVILEGES ON DATABASE app TO app;
+        ALTER USER app WITH PASSWORD 'app';
+
 EOSQL
