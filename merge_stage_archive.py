@@ -1,6 +1,7 @@
 import pandas as pd
 from pathlib import Path
 import sys
+import argparse
 
 JENKINS_BUILD_DTYPE = {
     "job" : "object",
@@ -137,17 +138,22 @@ SONAR_DTYPE = {
     'new_lines': 'object'}
 
 def merge(file_directory, DTYPE):
+
     if not file_directory.exists():
         return
+
     for file in file_directory.glob("*_staging.csv"):
         archive_file = Path(str(file).replace("_staging", ""))
         if archive_file.exists():
 
             old_df = pd.read_csv(archive_file.resolve(), dtype=DTYPE, header=0)
             new_df = pd.read_csv(file.resolve(), dtype = DTYPE, header = 0)
+
             df = pd.concat([new_df, old_df], ignore_index = True)
+            df.drop_duplicates(inplace=True)
             
             df.to_csv(path_or_buf= archive_file, index=False, header=True)
+            
             file.unlink()
         else:
             file.rename(archive_file)
@@ -155,8 +161,15 @@ def merge(file_directory, DTYPE):
 
 if __name__ == "__main__":
     
-    jenkins_data_dir = Path("/home/hung/MyWorksapce/BachelorThesis/repo/jenkins_data/data")
-    sonar_data_dir = Path("")
+    ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")
+
+    ap.add_argument("-j","--jenkins", default='./sonar_data' , help="Path to jenkins data directory.")
+    ap.add_argument("-s", "--sonar", default = "", help = "Path to Sonarqube data directory.")
+
+    args = vars(ap.parse_args())
+
+    jenkins_data_dir = Path(args['jenkins'])
+    sonar_data_dir = Path(args['sonar'])
 
     jenkins_builds_dir = jenkins_data_dir.joinpath("builds")
     if not jenkins_builds_dir.exists():
@@ -174,6 +187,6 @@ if __name__ == "__main__":
     dtype_dicts = [JENKINS_BUILD_DTYPE, JENKINS_TEST_DTYPE, SONAR_DTYPE]
 
     for dir,dtype in zip(dirs, dtype_dicts):
-        print(f"Merging in directory {dir.resolve()}")
+        print(f"Merging files in directory {dir.resolve()}")
         merge(dir, dtype)
 

@@ -15,4 +15,5 @@ docker-compose up
 # Improvements:
 - Use concurrency to speed up fetching jenkins data
 - Actually implementing incremental load
+- Implement parquet file format for jenkins
 :
