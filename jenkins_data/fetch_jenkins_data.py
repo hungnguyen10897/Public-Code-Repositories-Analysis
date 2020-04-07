@@ -11,7 +11,7 @@ import argparse
 import pandas as pd
 from collections import OrderedDict
 
-BUILD_DATA_COLUMNS = OrderedDict({
+JENKINS_BUILD_DTYPE = OrderedDict({
     "job" : "object",
     "build_number" : "Int64",
     "result" : "object",
@@ -25,7 +25,7 @@ BUILD_DATA_COLUMNS = OrderedDict({
     "test_skip_count" : "Int64",
     "total_test_duration" : "float64"})
 
-TEST_DATA_COLUMNS = OrderedDict({
+JENKINS_TEST_DTYPE = OrderedDict({
     "job" : "object",
     "build_number" : "Int64",
     "package" : "object",
@@ -223,7 +223,7 @@ def write_to_file(job_data, old_builds_df, output_dir_str, build_only):
 
         old_tests_df = None
         if output_file_tests.exists():
-            old_tests_df = pd.read_csv(output_file_tests.resolve(), dtype=TEST_DATA_COLUMNS, header=0)
+            old_tests_df = pd.read_csv(output_file_tests.resolve(), dtype=JENKINS_TEST_DTYPE, header=0)
             output_file_tests.unlink()
 
         agg_tests_df = pd.concat([df_tests, old_tests_df], ignore_index = True)
@@ -274,7 +274,7 @@ def get_jobs_info(name, server, is_job, output_dir_str):
             df = None
             p = Path(output_dir_str).joinpath("builds").joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds.csv")
             if p.exists():
-                df = pd.read_csv(p.resolve(), dtype=BUILD_DATA_COLUMNS, parse_dates=['commit_ts'], header=0)
+                df = pd.read_csv(p.resolve(), dtype=JENKINS_BUILD_DTYPE, parse_dates=['commit_ts'], header=0)
 
                 latest_build_on_file = df['build_number'].max()
                 lastest_build_on_server = job_info['lastBuild']['number']
@@ -344,7 +344,7 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
 
         df_builds = None
         if builds_data != []:
-            df_builds = pd.DataFrame(data = builds_data, columns=list(BUILD_DATA_COLUMNS.keys()))
+            df_builds = pd.DataFrame(data = builds_data, columns=list(JENKINS_BUILD_DTYPE.keys()))
             # Explicitly cast to Int64 since if there are None in columns of int type, they will be implicitly casted to float64
             df_builds = df_builds.astype({    
                 "build_number" : "Int64",
@@ -356,7 +356,7 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
 
         df_tests = None    
         if tests_data != []:
-            df_tests = pd.DataFrame(data = tests_data, columns=list(TEST_DATA_COLUMNS.keys()))
+            df_tests = pd.DataFrame(data = tests_data, columns=list(JENKINS_TEST_DTYPE.keys()))
             df_tests = df_tests.astype({"build_number" : "Int64"})
        
         write_to_file((fullName,df_builds, df_tests),old_builds_df, output_dir_str, build_only)

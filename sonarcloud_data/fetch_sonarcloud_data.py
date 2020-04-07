@@ -9,8 +9,9 @@ import argparse
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
-DTYPE_DICT = {'project': 'object',
+SONAR_DTYPE = {'project': 'object',
     'version': 'object',
+    'date' : 'object',
     'revision': 'object',
     'complexity': 'Int64',
     'class_complexity': 'object',
@@ -279,7 +280,7 @@ def process_project(project, format, output_path, metrics_path = None ):
     if file_path.exists():
         try:
             if format == 'csv':
-                old_df = pd.read_csv(file_path.resolve(), dtype=DTYPE_DICT, parse_dates=['date'])
+                old_df = pd.read_csv(file_path.resolve(), dtype=SONAR_DTYPE, parse_dates=['date'])
             elif format == 'parquet':
                 old_df = pd.read_parquet(path = file_path.resolve())
             # TO_DO: Change nan to None ? Is it neccessary?
