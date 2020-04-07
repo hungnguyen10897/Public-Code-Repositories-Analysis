@@ -211,7 +211,7 @@ def get_data(builds, job_name , server, build_only):
 
     return builds_data, tests_data
 
-def write_to_file(job_data, old_builds_df, output_dir_str, build_only):
+def write_to_file(job_data, output_dir_str, build_only):
     
     job_name, df_builds, df_tests = job_data
     output_dir = Path(output_dir_str)
@@ -219,26 +219,16 @@ def write_to_file(job_data, old_builds_df, output_dir_str, build_only):
     if not build_only and df_tests is not None:
         tests_dir = output_dir.joinpath('tests')
         tests_dir.mkdir(parents=True, exist_ok=True)
-        output_file_tests = tests_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_tests.csv")
+        output_file_tests = tests_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_tests_staging.csv")
 
-        old_tests_df = None
-        if output_file_tests.exists():
-            old_tests_df = pd.read_csv(output_file_tests.resolve(), dtype=JENKINS_TEST_DTYPE, header=0)
-            output_file_tests.unlink()
-
-        agg_tests_df = pd.concat([df_tests, old_tests_df], ignore_index = True)
-        agg_tests_df.to_csv(path_or_buf = output_file_tests, index=False, header=True)
+        df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True)
 
     if df_builds is not None:
         builds_dir = output_dir.joinpath('builds')
         builds_dir.mkdir(parents=True, exist_ok=True)
-        output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds.csv")
+        output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds_staging.csv")
 
-        if output_file_builds.exists():
-            output_file_builds.unlink()
-
-        agg_builds_df = pd.concat([df_builds, old_builds_df], ignore_index = True)
-        agg_builds_df.to_csv(path_or_buf = output_file_builds, index=False, header = True)
+        df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True)
 
 def get_jobs_info(name, server, is_job, output_dir_str):
 
@@ -289,16 +279,16 @@ def get_jobs_info(name, server, is_job, output_dir_str):
                     continue
                 elif diff >= 100:
                     full_job_info = server.get_job_info(job_name, depth= 0, fetch_all_builds = True)
-                    jobs_info.append((full_job_info, df))
+                    jobs_info.append((full_job_info, latest_build_on_file))
                 else:
-                    jobs_info.append((job_info, df))
+                    jobs_info.append((job_info, latest_build_on_file))
 
             else:
                 if num_builds == 100:
                     full_job_info = server.get_job_info(job_name, depth= 0, fetch_all_builds = True)
-                    jobs_info.append((full_job_info, df))
+                    jobs_info.append((full_job_info, latest_build_on_file))
                 else:
-                    jobs_info.append((job_info, df))
+                    jobs_info.append((job_info, latest_build_on_file))
 
     return jobs_info
 
@@ -316,13 +306,9 @@ def get_all_job_names(server):
 
 def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./data', build_only = False):
 
-    for job_info, old_builds_df in get_jobs_info(project_name, server, is_job, output_dir_str= output_dir_str):
+    for job_info, latest_build_on_file in get_jobs_info(project_name, server, is_job, output_dir_str= output_dir_str):
 
-        # Get latest build number on file
-        latest_build_on_file = -1
-        if old_builds_df is not None:
-            latest_build_on_file = old_builds_df['build_number'].max()
-
+        latest_build_on_file = -1 if latest_build_on_file is None else latest_build_on_file
         fullName = job_info['fullName']
         print(f"\tJob: {fullName}")
 
@@ -364,7 +350,7 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
             df_tests = pd.DataFrame(data = tests_data, columns=list(JENKINS_TEST_DTYPE.keys()))
             df_tests = df_tests.astype({"build_number" : "Int64"})
        
-        write_to_file((fullName,df_builds, df_tests),old_builds_df, output_dir_str, build_only)
+        write_to_file((fullName,df_builds, df_tests), output_dir_str, build_only)
 
 if __name__ == "__main__":
 
