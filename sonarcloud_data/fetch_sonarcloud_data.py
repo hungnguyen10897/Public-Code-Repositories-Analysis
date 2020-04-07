@@ -272,21 +272,21 @@ def process_project(project, format, output_path, metrics_path = None ):
 
     output_path_format = Path(output_path).joinpath(format)
     output_path_format.mkdir(parents=True, exist_ok=True)
-    file_path = output_path_format.joinpath(f"{project_key}.{format}")
+    staging_file_path = output_path_format.joinpath(f"{project_key}_staging.{format}")
+    archive_file_path = output_path_format.joinpath(f"{project_key}.{format}")
 
     max_ts_str = None
-    old_df = None
 
-    if file_path.exists():
+    if archive_file_path.exists():
         try:
             if format == 'csv':
-                old_df = pd.read_csv(file_path.resolve(), dtype=SONAR_DTYPE, parse_dates=['date'])
+                old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_DTYPE, parse_dates=['date'])
             elif format == 'parquet':
-                old_df = pd.read_parquet(path = file_path.resolve())
+                old_df = pd.read_parquet(path = archive_file_path.resolve())
             # TO_DO: Change nan to None ? Is it neccessary?
             max_ts_str = old_df['date'].max().strftime(format = '%Y-%m-%d')
         except ValueError as e:
-            print(f"\t\tERROR: {e} when parsing {file_path} into DataFrame.")
+            print(f"\t\tERROR: {e} when parsing {archive_file_path} into DataFrame.")
             max_ts_str = None
 
         except FileNotFoundError as e:
@@ -330,18 +330,12 @@ def process_project(project, format, output_path, metrics_path = None ):
     columns_with_metrics, data_with_measures = extract_measures_value(measures, metrics_order_type, columns, data)
 
     #Create DF
-    new_df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
-    result_df = pd.concat([new_df, old_df], ignore_index=True)
-    result_df.drop_duplicates(inplace=True)
-
-    # Delete original file
-    if file_path.exists():
-        file_path.unlink()
+    df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
 
     if format == "csv":
-        result_df.to_csv(path_or_buf= file_path, index=False, header=True)
+        df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
     elif format == "parquet":
-        result_df.to_parquet(fname= file_path, index=False)
+        df.to_parquet(fname= staging_file_path, index=False)
 
 def write_metrics_file(metric_list):
     metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
