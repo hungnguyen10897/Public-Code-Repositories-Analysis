@@ -352,23 +352,7 @@ def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./da
        
         write_to_file((fullName,df_builds, df_tests), output_dir_str, build_only)
 
-if __name__ == "__main__":
-
-    ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
-
-    ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
-    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'")
-    # ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='incremental_load', help="First load or incremental load, same if no data is available")
-    ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
-    ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
-    ap.add_argument("-a","--all", action="store_true", help = "Load data from all jobs available on the server, this will ignore -p argument")
-
-    args = vars(ap.parse_args())
-
-    build_only = args['build_only']
-    output_path = args['output_path']
-    projects_path = args['projects']
-    all = args['all']
+def fetch_jenkins(all, projects_path, output_path, build_only):
 
     start = time.time()
     server = jenkins.Jenkins('https://builds.apache.org/')
@@ -393,3 +377,24 @@ if __name__ == "__main__":
 
     end = time.time()
     print(f"Time total: {end-start}")
+
+if __name__ == "__main__":
+
+    ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
+
+    ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
+    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'")
+    # ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='incremental_load', help="First load or incremental load, same if no data is available")
+    ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
+    ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
+    ap.add_argument("-a","--all", action="store_true", help = "Load data from all jobs available on the server, this will ignore -p argument")
+
+    args = vars(ap.parse_args())
+
+    build_only = args['build_only']
+    output_path = args['output_path']
+    projects_path = args['projects']
+    all = args['all']
+
+    fetch_jenkins(all, projects_path, output_path, build_only)
+

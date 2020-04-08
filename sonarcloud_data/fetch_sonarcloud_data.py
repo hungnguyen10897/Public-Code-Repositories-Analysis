@@ -350,6 +350,17 @@ def write_metrics_file(metric_list):
                 'No Description' if 'description' not in metric else metric['description']
                 ))
 
+def fetch_sonarqube(format, output_path):
+    project_list = query_server(type='projects')
+    project_list.sort(key = lambda x: x['key'])
+
+    print(f"Total: {len(project_list)} projects.")
+    i = 0
+    for project in project_list:
+        print(f"\t{i}: ")
+        process_project(project, format, output_path)
+        i += 1
+
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
@@ -368,12 +379,5 @@ if __name__ == "__main__":
     # Write all metrics to a file
     # write_metrics_file(query_server(type='metrics'))
 
-    project_list = query_server(type='projects')
-    project_list.sort(key = lambda x: x['key'])
+    fetch_sonarqube(format, output_path)
 
-    print(f"Total: {len(project_list)} projects.")
-    i = 0
-    for project in project_list:
-        print(f"\t{i}: ")
-        process_project(project, format, output_path)
-        i += 1

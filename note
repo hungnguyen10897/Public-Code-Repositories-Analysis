@@ -19,3 +19,8 @@ $ docker-compose up
 - Actually implementing incremental load
 - Implement parquet file format for jenkins
 
+## Airflow
+$ airflow initdb
+$ airflow scheduler
+$ airflow webserver
+

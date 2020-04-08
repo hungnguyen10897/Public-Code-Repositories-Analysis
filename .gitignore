@@ -2,6 +2,7 @@ jenkins_data/.ipynb_checkpoints/jenkins_eda-checkpoint.ipynb
 **/.vscode/**
 jenkins_data/projects_test.csv
 **/data*/**
+**/__pycache__/**
 **/db_home/**
 sqlite-jdbc-3.8.6.jar
 jenkins_builds.csv
