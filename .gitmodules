@@ -1,6 +1,3 @@
 [submodule "superset"]
 	path = superset
 	url = git@github.com:hungnguyen10897/incubator-superset.git
-[submodule "docker-airflow"]
-	path = docker-airflow
-	url = git@github.com:hungnguyen10897/docker-airflow.git
