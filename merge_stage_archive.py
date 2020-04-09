@@ -158,17 +158,7 @@ def merge(file_directory, DTYPE):
         else:
             file.rename(archive_file)
 
-if __name__ == "__main__":
-    
-    ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")
-
-    ap.add_argument("-j","--jenkins", default='./sonar_data' , help="Path to jenkins data directory.")
-    ap.add_argument("-s", "--sonar", default = "", help = "Path to Sonarqube data directory.")
-
-    args = vars(ap.parse_args())
-
-    jenkins_data_dir = Path(args['jenkins'])
-    sonar_data_dir = Path(args['sonar'])
+def main(jenkins_data_dir, sonar_data_dir):
 
     jenkins_builds_dir = jenkins_data_dir.joinpath("builds")
     if not jenkins_builds_dir.exists():
@@ -188,4 +178,19 @@ if __name__ == "__main__":
     for dir,dtype in zip(dirs, dtype_dicts):
         print(f"Merging files in directory {dir.resolve()}")
         merge(dir, dtype)
+
+if __name__ == "__main__":
+    
+    ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")
+
+    ap.add_argument("-j","--jenkins", default='./sonar_data' , help="Path to jenkins data directory.")
+    ap.add_argument("-s", "--sonar", default = "", help = "Path to Sonarqube data directory.")
+
+    args = vars(ap.parse_args())
+
+    jenkins_data_dir = Path(args['jenkins'])
+    sonar_data_dir = Path(args['sonar'])
+
+    main(jenkins_data_dir, sonar_data_dir)
+
 
