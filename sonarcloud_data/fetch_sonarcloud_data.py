@@ -265,7 +265,12 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
         history = measure['history']
         values = list((map(lambda x: None if 'value' not in x else safe_cast(x['value'],type, contain_comma), history)))
         values.reverse()
-        data[metric] = values
+
+        # Resolving None Integer values
+        if type in ['INT' ,'WORK_DUR']:
+            data[metric] = pd.array(values, dtype=pd.Int64Dtype())
+        else:
+            data[metric] = values
     
     return columns, data
 
@@ -371,7 +376,7 @@ if __name__ == "__main__":
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', 
         help="Output file format. Can either be csv or parquet")
 
-    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory.")
+    ap.add_argument("-o","--output-path", default='./data2' , help="Path to output file directory.")
     # ap.add_argument("-l","--load", choices = ['first', 'incremental'], default='incremental' , help="Path to output file directory.")
 
     args = vars(ap.parse_args())
