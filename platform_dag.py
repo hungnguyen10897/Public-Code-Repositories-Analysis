@@ -32,7 +32,7 @@ t1_sonar = PythonOperator(
     task_id = 'fetch_sonarqube_data',
     provide_context=False,
     python_callable= fetch_sonarqube,
-    op_args=['csv', './sonarcloud_data/sonar_data'],
+    op_args=['csv', './sonarcloud_data/data'],
     dag = dag
 )
 
