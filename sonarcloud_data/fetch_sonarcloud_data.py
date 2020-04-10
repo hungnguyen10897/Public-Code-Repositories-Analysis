@@ -200,7 +200,7 @@ def process_datetime(time_str):
 
 def load_metrics(path = None):
     if path is None:
-        path = './all_metrics.txt'
+        path = './metrics.txt'
     p = Path(path)
     if not p.exists():
         print(f"ERROR: Path for metrics {p.resolve()} does not exists.")
@@ -255,14 +255,17 @@ def safe_cast(val, to_type, contain_comma = False):
 def extract_measures_value(measures, metrics_order_type, columns, data):
 
     for measure in measures:
+
         metric = measure['metric']
+        type = metrics_order_type[metric][1]
+    
+        columns.append(metric)
+        history = measure['history']
+
         contain_comma = False
         if metric in ['quality_profiles','quality_gate_details']:
             contain_comma = True
-        type = metrics_order_type[metric][1]
 
-        columns.append(metric)
-        history = measure['history']
         values = list((map(lambda x: None if 'value' not in x else safe_cast(x['value'],type, contain_comma), history)))
         values.reverse()
 
@@ -350,6 +353,9 @@ def write_metrics_file(metric_list):
 
     with open('./all_metrics.txt', 'w') as f:
         for metric in metric_list:
+            # Ignore this, extremely long
+            if metric == 'sonarjava_feedback':
+                continue
             f.write("{} - {} - {} - {} - {}\n".format(
                 'No ID' if 'id' not in metric else metric['id'],
                 'No Domain' if 'domain' not in metric else metric['domain'],
