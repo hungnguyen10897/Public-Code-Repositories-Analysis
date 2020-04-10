@@ -107,7 +107,6 @@ SONAR_DTYPE = OrderedDict({
     'effort_to_reach_maintainability_rating_a': 'Int64',
     'new_maintainability_rating': 'object',
     'new_development_cost': 'float64',
-    'sonarjava_feedback': 'object',
     'alert_status': 'object',
     'bugs': 'Int64',
     'new_bugs': 'object',
@@ -200,16 +199,10 @@ def get_jenkins_builds_data(jenkins_data_directory):
             field.append(StructField(col, DoubleType(), True))
 
     schema = StructType(field)
-    output = spark.createDataFrame(sc.emptyRDD(), schema)
-    dfs = []
-    for file in builds_path.glob('*.csv'):
+    df = spark.read.csv(str(builds_path.absolute()) + '/*.csv', sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
+        ignoreTrailingWhiteSpace = True, header=True)
+    return df
 
-        df = spark.read.csv(str(file.resolve()), sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
-            ignoreTrailingWhiteSpace = True, header=True)
-        dfs.append(df)
-
-    output = reduce(DataFrame.union, dfs, spark.createDataFrame(sc.emptyRDD(), schema))
-    return output
 
 def get_sonar_data(sonar_data_directory):
 
@@ -228,18 +221,8 @@ def get_sonar_data(sonar_data_directory):
             field.append(StructField(col, FloatType(), True))
 
     schema = StructType(field)
-    i = 1
-    dfs = []
-    for file in csv_path.glob('*_staging.csv'):
-
-        print(str(file.resolve()))
-        df = spark.read.csv(str(file.absolute()), sep=',', schema = schema, ignoreLeadingWhiteSpace = True, ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
-        print(df.count())
-        dfs.append(df)
-
-    print("##")
-    output = reduce(DataFrame.union, dfs, spark.createDataFrame(sc.emptyRDD(), schema))
-    return output
+    df = spark.read.csv(str(csv_path.absolute())+ "/*_staging.csv", sep=',', schema = schema, ignoreLeadingWhiteSpace = True, ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
+    return df
 
 if __name__ == "__main__":
 
@@ -268,7 +251,7 @@ if __name__ == "__main__":
     # print("Jenkins Count: ", jenkins_builds_df.count())
 
     sonar_df = get_sonar_data(sonar_data_directory)
-    # sonar_df = sonar_df.filter("revision IS NOT NULL")
+    # sonar_df = sonar_df.filter("project IS NULL")
     sonar_df.persist()
     sonar_df.collect()
     sonar_df.show(5)
