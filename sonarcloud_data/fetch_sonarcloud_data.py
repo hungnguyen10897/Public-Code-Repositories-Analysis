@@ -220,7 +220,7 @@ def load_metrics(path = None):
         print("ERROR: Reading metrics file")
         sys.exit(1)
 
-def safe_cast(val, to_type):
+def safe_cast(val, to_type, contain_comma = False):
     if to_type in ['INT' ,'WORK_DUR']:
         try:
             return int(val)
@@ -247,7 +247,7 @@ def safe_cast(val, to_type):
             return None
     else:
         try:
-            return str(val)
+            return str(val) if not contain_comma else str(val).replace(',',';')
         except (ValueError, TypeError):
             print(f"ERROR: error casting to type {to_type}")
             return None
@@ -256,11 +256,14 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
 
     for measure in measures:
         metric = measure['metric']
+        contain_comma = False
+        if metric in ['quality_profiles','quality_gate_details']:
+            contain_comma = True
         type = metrics_order_type[metric][1]
 
         columns.append(metric)
         history = measure['history']
-        values = list((map(lambda x: None if 'value' not in x else safe_cast(x['value'],type), history)))
+        values = list((map(lambda x: None if 'value' not in x else safe_cast(x['value'],type, contain_comma), history)))
         values.reverse()
         data[metric] = values
     
@@ -368,7 +371,7 @@ if __name__ == "__main__":
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', 
         help="Output file format. Can either be csv or parquet")
 
-    ap.add_argument("-o","--output-path", default='./sonar_data' , help="Path to output file directory.")
+    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory.")
     # ap.add_argument("-l","--load", choices = ['first', 'incremental'], default='incremental' , help="Path to output file directory.")
 
     args = vars(ap.parse_args())
