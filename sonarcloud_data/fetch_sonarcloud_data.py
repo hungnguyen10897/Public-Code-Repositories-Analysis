@@ -9,7 +9,8 @@ import argparse
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
-SONAR_DTYPE = {'project': 'object',
+SONAR_DTYPE = {
+    'project': 'object',
     'version': 'object',
     'date' : 'object',
     'revision': 'object',
@@ -118,7 +119,6 @@ SONAR_DTYPE = {'project': 'object',
     'projects': 'object',
     'ncloc_language_distribution': 'object',
     'new_lines': 'object'}
-
 
 def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts = None):
 
@@ -280,8 +280,8 @@ def process_project(project, format, output_path, metrics_path = None ):
 
     output_path_format = Path(output_path).joinpath(format)
     output_path_format.mkdir(parents=True, exist_ok=True)
-    staging_file_path = output_path_format.joinpath(f"{project_key}_staging.{format}")
-    archive_file_path = output_path_format.joinpath(f"{project_key}.{format}")
+    staging_file_path = output_path_format.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.{format}")
+    archive_file_path = output_path_format.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.{format}")
 
     max_ts_str = None
 
@@ -376,7 +376,7 @@ if __name__ == "__main__":
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', 
         help="Output file format. Can either be csv or parquet")
 
-    ap.add_argument("-o","--output-path", default='./data2' , help="Path to output file directory.")
+    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory.")
     # ap.add_argument("-l","--load", choices = ['first', 'incremental'], default='incremental' , help="Path to output file directory.")
 
     args = vars(ap.parse_args())

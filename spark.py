@@ -4,7 +4,143 @@ from pyspark.sql import SparkSession
 from pathlib import Path
 from pyspark.sql import DataFrame
 from pyspark.sql.types import *
-from pyspark import SparkContext
+from pyspark import SparkContext, SparkConf
+from collections import OrderedDict
+from functools import reduce
+
+JENKINS_BUILD_DTYPE = OrderedDict({
+    "job" : "object",
+    "build_number" : "Int64",
+    "result" : "object",
+    "duration" : "Int64",
+    "estimated_duration" : "Int64",
+    "revision_number" : "object",
+    "commit_id" : "object",
+    "commit_ts" : "object",
+    "test_pass_count" : "Int64",
+    "test_fail_count" : "Int64",
+    "test_skip_count" : "Int64",
+    "total_test_duration" : "float64"})
+
+JENKINS_TEST_DTYPE = OrderedDict({
+    "job" : "object",
+    "build_number" : "Int64",
+    "package" : "object",
+    "class" : "object",
+    "name" : "object",
+    "duration" : "float64",
+    "status" : "object"})
+
+SONAR_DTYPE = OrderedDict({
+    'project': 'object',
+    'version': 'object',
+    'date' : 'object',
+    'revision': 'object',
+    'complexity': 'Int64',
+    'class_complexity': 'object',
+    'function_complexity': 'object',
+    'file_complexity': 'float64',
+    'function_complexity_distribution': 'object',
+    'file_complexity_distribution': 'object',
+    'complexity_in_classes': 'object',
+    'complexity_in_functions': 'object',
+    'cognitive_complexity': 'Int64',
+    'test_errors': 'Int64',
+    'skipped_tests': 'Int64',
+    'test_failures': 'Int64',
+    'tests': 'Int64',
+    'test_execution_time': 'object',
+    'test_success_density': 'float64',
+    'coverage': 'float64',
+    'lines_to_cover': 'Int64',
+    'uncovered_lines': 'Int64',
+    'line_coverage': 'float64',
+    'conditions_to_cover': 'Int64',
+    'uncovered_conditions': 'Int64',
+    'branch_coverage': 'float64',
+    'new_coverage': 'object',
+    'new_lines_to_cover': 'object',
+    'new_uncovered_lines': 'object',
+    'new_line_coverage': 'object',
+    'new_conditions_to_cover': 'object',
+    'new_uncovered_conditions': 'object',
+    'new_branch_coverage': 'object',
+    'executable_lines_data': 'object',
+    'public_api': 'object',
+    'public_documented_api_density': 'object',
+    'public_undocumented_api': 'object',
+    'duplicated_lines': 'Int64',
+    'duplicated_lines_density': 'float64',
+    'duplicated_blocks': 'Int64',
+    'duplicated_files': 'Int64',
+    'duplications_data': 'object',
+    'new_duplicated_lines': 'object',
+    'new_duplicated_blocks': 'object',
+    'new_duplicated_lines_density': 'object',
+    'quality_profiles': 'object',
+    'quality_gate_details': 'object',
+    'violations': 'Int64',
+    'blocker_violations': 'Int64',
+    'critical_violations': 'Int64',
+    'major_violations': 'Int64',
+    'minor_violations': 'Int64',
+    'info_violations': 'Int64',
+    'new_violations': 'object',
+    'new_blocker_violations': 'object',
+    'new_critical_violations': 'object',
+    'new_major_violations': 'object',
+    'new_minor_violations': 'object',
+    'new_info_violations': 'object',
+    'false_positive_issues': 'Int64',
+    'open_issues': 'Int64',
+    'reopened_issues': 'Int64',
+    'confirmed_issues': 'Int64',
+    'wont_fix_issues': 'Int64',
+    'sqale_index': 'Int64',
+    'sqale_rating': 'float64',
+    'development_cost': 'object',
+    'new_technical_debt': 'object',
+    'sqale_debt_ratio': 'float64',
+    'new_sqale_debt_ratio': 'float64',
+    'code_smells': 'Int64',
+    'new_code_smells': 'object',
+    'effort_to_reach_maintainability_rating_a': 'Int64',
+    'new_maintainability_rating': 'object',
+    'new_development_cost': 'float64',
+    'sonarjava_feedback': 'object',
+    'alert_status': 'object',
+    'bugs': 'Int64',
+    'new_bugs': 'object',
+    'reliability_remediation_effort': 'Int64',
+    'new_reliability_remediation_effort': 'object',
+    'reliability_rating': 'float64',
+    'new_reliability_rating': 'object',
+    'last_commit_date': 'object',
+    'vulnerabilities': 'Int64',
+    'new_vulnerabilities': 'object',
+    'security_remediation_effort': 'Int64',
+    'new_security_remediation_effort': 'object',
+    'security_rating': 'float64',
+    'new_security_rating': 'object',
+    'security_hotspots': 'Int64',
+    'new_security_hotspots': 'object',
+    'security_review_rating': 'float64',
+    'classes': 'Int64',
+    'ncloc': 'Int64',
+    'functions': 'Int64',
+    'comment_lines': 'Int64',
+    'comment_lines_density': 'float64',
+    'files': 'Int64',
+    'directories': 'object',
+    'lines': 'Int64',
+    'statements': 'Int64',
+    'generated_lines': 'object',
+    'generated_ncloc': 'object',
+    'ncloc_data': 'object',
+    'comment_lines_data': 'object',
+    'projects': 'object',
+    'ncloc_language_distribution': 'object',
+    'new_lines': 'object'})
 
 sc = SparkContext()
 spark = SparkSession.builder.getOrCreate()
@@ -23,33 +159,6 @@ def retrieve_sqlite(sqlite_conn_url):
     db['REFACTORING_MINER'] = refactoring_miner_df
 
     return db
-
-def get_jenkins_builds_data(jenkins_data_directory):
-    
-    data_path = Path(jenkins_data_directory)
-    builds_path = data_path.joinpath('builds')
-
-    field = [StructField("job",StringType(), True),
-            StructField("build_number", IntegerType(), True),
-            StructField("result", StringType(), True),
-            StructField("duration", IntegerType(), True),
-            StructField("estimated_duration", IntegerType(), True),
-            StructField("revision_number", StringType(), True),
-            StructField("commit_id", StringType(), True),
-            StructField("commit_ts", TimestampType(), True),
-            StructField("test_pass_count", IntegerType(), True),
-            StructField("test_fail_count", IntegerType(), True),
-            StructField("test_skip_count", IntegerType(), True),
-            StructField("total_test_duration", DoubleType(), True)]
-    schema = StructType(field)
-    output = spark.createDataFrame(sc.emptyRDD(), schema)
-    for file in builds_path.glob('*.csv'):
-
-        df = spark.read.csv(str(file.resolve()), sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
-            ignoreTrailingWhiteSpace = True, header=True)
-
-        output = output.union(df)
-    return output
 
 def refactor_type_count(refactoring_miner_df):
 
@@ -74,36 +183,101 @@ def refactor_type_count(refactoring_miner_df):
 
     return spark.sql(sql_str)
 
+def get_jenkins_builds_data(jenkins_data_directory):
+    
+    data_path = Path(jenkins_data_directory)
+    builds_path = data_path.joinpath('builds')
+
+    field = []
+    for col,type in JENKINS_BUILD_DTYPE.items():
+        if col == 'commit_ts':
+            field.append(StructField(col, TimestampType(), True))
+        elif type == 'object':
+            field.append(StructField(col, StringType(), True))
+        elif type == 'Int64':
+            field.append(StructField(col, IntegerType(), True))
+        elif type == 'float64':
+            field.append(StructField(col, DoubleType(), True))
+
+    schema = StructType(field)
+    output = spark.createDataFrame(sc.emptyRDD(), schema)
+    dfs = []
+    for file in builds_path.glob('*.csv'):
+
+        df = spark.read.csv(str(file.resolve()), sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
+            ignoreTrailingWhiteSpace = True, header=True)
+        dfs.append(df)
+
+    output = reduce(DataFrame.union, dfs, spark.createDataFrame(sc.emptyRDD(), schema))
+    return output
+
+def get_sonar_data(sonar_data_directory):
+
+    path = Path(sonar_data_directory)
+    csv_path = path.joinpath("csv")
+
+    field = []
+    for col,type in SONAR_DTYPE.items():
+        if col == 'date':
+            field.append(StructField(col, TimestampType(), True))
+        elif type == 'object':
+            field.append(StructField(col, StringType(), True))
+        elif type == 'Int64':
+            field.append(StructField(col, IntegerType(), True))
+        elif type == 'float64':
+            field.append(StructField(col, FloatType(), True))
+
+    schema = StructType(field)
+    i = 1
+    dfs = []
+    for file in csv_path.glob('*_staging.csv'):
+
+        print(str(file.resolve()))
+        df = spark.read.csv(str(file.absolute()), sep=',', schema = schema, ignoreLeadingWhiteSpace = True, ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
+        print(df.count())
+        dfs.append(df)
+
+    print("##")
+    output = reduce(DataFrame.union, dfs, spark.createDataFrame(sc.emptyRDD(), schema))
+    return output
+
 if __name__ == "__main__":
 
-    jenkins_data_directory = "./jenkins_data/data"
+    jenkins_data_directory = "./jenkins_data/data_test"
+    sonar_data_directory = "./sonarcloud_data/data"
     sqlite_conn_url = "jdbc:sqlite:/home/hung/MyWorksapce/BachelorThesis/SQLite-Database/technicalDebtDataset.db"
 
-    db = retrieve_sqlite(sqlite_conn_url)
-    projects_df = db['PROJECTS']
-    refactoring_miner_df = db['REFACTORING_MINER']
+    # db = retrieve_sqlite(sqlite_conn_url)
+    # projects_df = db['PROJECTS']
+    # refactoring_miner_df = db['REFACTORING_MINER']
 
-    refactoring_miner_df = refactoring_miner_df.filter("refactoringType IS NOT NULL")
-    refactoring_miner_df.persist()
-    refactoring_miner_df.createOrReplaceTempView("REFACTORING_MINER")
+    # refactoring_miner_df = refactoring_miner_df.filter("refactoringType IS NOT NULL")
+    # refactoring_miner_df.persist()
+    # refactoring_miner_df.createOrReplaceTempView("REFACTORING_MINER")
 
-    refactor_count_df = refactor_type_count(refactoring_miner_df)
-    refactor_count_df.persist()
-    refactoring_miner_df.unpersist()
+    # refactor_count_df = refactor_type_count(refactoring_miner_df)
+    # refactor_count_df.persist()
+    # refactoring_miner_df.unpersist()
 
-    jenkins_builds_df = get_jenkins_builds_data(jenkins_data_directory)
+
+    # jenkins_builds_df = get_jenkins_builds_data(jenkins_data_directory)
+    # jenkins_builds_df = jenkins_builds_df.filter("commit_id IS NOT NULL")
+    # jenkins_builds_df.persist()
+    # jenkins_builds_df.show(5)
+    # #jenkins_builds_df.repartition(1).write.csv('./jenkins_builds.csv', header=True)
+    # print("Jenkins Count: ", jenkins_builds_df.count())
+
+    sonar_df = get_sonar_data(sonar_data_directory)
+    # sonar_df = sonar_df.filter("revision IS NOT NULL")
+    sonar_df.persist()
+    sonar_df.collect()
+    sonar_df.show(5)
+    print("Sonar Count: ", sonar_df.count())
+
+
+    # result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.commit_id == sonar_df.revision, how = 'inner')
+    # result.cache()
     
-
-    jenkins_builds_df = jenkins_builds_df.filter("commit_id IS NOT NULL")
-    jenkins_builds_df.persist()
-
-    #jenkins_builds_df.repartition(1).write.csv('./jenkins_builds.csv', header=True)
-
-    result = jenkins_builds_df.join(refactor_count_df, jenkins_builds_df.commit_id == refactor_count_df.commitHash, how = 'inner')
-    result.cache()
-    
-    print("RM Count: ", refactor_count_df.count())
-    print("Jenkins Count: ", jenkins_builds_df.count())
-    print("Result Count: ",result.count())
+    # print("Result Count: ",result.count())
 
     spark.stop()
