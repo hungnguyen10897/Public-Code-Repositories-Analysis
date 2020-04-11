@@ -178,8 +178,6 @@ def refactor_type_count(refactoring_miner_df):
         FROM REFACTORING_MINER GROUP BY projectID,commitHash
     """
 
-    # print(sql_str)
-
     return spark.sql(sql_str)
 
 def get_jenkins_builds_data(jenkins_data_directory):
@@ -226,7 +224,7 @@ def get_sonar_data(sonar_data_directory):
 
 if __name__ == "__main__":
 
-    jenkins_data_directory = "./jenkins_data/data_test"
+    jenkins_data_directory = "./jenkins_data/data"
     sonar_data_directory = "./sonarcloud_data/data"
     sqlite_conn_url = "jdbc:sqlite:/home/hung/MyWorksapce/BachelorThesis/SQLite-Database/technicalDebtDataset.db"
 
@@ -243,24 +241,23 @@ if __name__ == "__main__":
     # refactoring_miner_df.unpersist()
 
 
-    # jenkins_builds_df = get_jenkins_builds_data(jenkins_data_directory)
-    # jenkins_builds_df = jenkins_builds_df.filter("commit_id IS NOT NULL")
-    # jenkins_builds_df.persist()
-    # jenkins_builds_df.show(5)
-    # #jenkins_builds_df.repartition(1).write.csv('./jenkins_builds.csv', header=True)
-    # print("Jenkins Count: ", jenkins_builds_df.count())
+    jenkins_builds_df = get_jenkins_builds_data(jenkins_data_directory)
+    jenkins_builds_df = jenkins_builds_df.filter("revision_number IS NOT NULL")
+    jenkins_builds_df.persist()
+    jenkins_builds_df.show(5)
+    #jenkins_builds_df.repartition(1).write.csv('./jenkins_builds.csv', header=True)
+    print("Jenkins Count: ", jenkins_builds_df.count())
 
     sonar_df = get_sonar_data(sonar_data_directory)
-    # sonar_df = sonar_df.filter("project IS NULL")
+    sonar_df = sonar_df.filter("revision IS NOT NULL")
     sonar_df.persist()
     sonar_df.collect()
     sonar_df.show(5)
     print("Sonar Count: ", sonar_df.count())
 
-
-    # result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.commit_id == sonar_df.revision, how = 'inner')
-    # result.cache()
+    result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
+    result.cache()
     
-    # print("Result Count: ",result.count())
+    print("Result Count: ",result.count())
 
     spark.stop()
