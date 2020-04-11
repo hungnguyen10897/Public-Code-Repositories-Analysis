@@ -1,5 +1,5 @@
-# pyspark --conf spark.executor.extraClassPath=sqlite-jdbc-3.30.1.jar --driver-class-path sqlite-jdbc-3.30.1.jar --jars sqlite-jdbc-3.30.1.jar
-# spark-submit --conf spark.executor.extraClassPath=sqlite-jdbc-3.30.1.jar --driver-class-path sqlite-jdbc-3.30.1.jar --jars sqlite-jdbc-3.30.1.jar spark.py
+# pyspark --driver-class-pathpostgresql-42.2.12.jar
+# spark-submit --driver-class-path postgresql-42.2.12.jar spark.py
 from pyspark.sql import SparkSession
 from pathlib import Path
 from pyspark.sql import DataFrame
@@ -141,8 +141,8 @@ SONAR_DTYPE = OrderedDict({
     'ncloc_language_distribution': 'object',
     'new_lines': 'object'})
 
-sc = SparkContext()
-spark = SparkSession.builder.getOrCreate()
+conf = SparkConf().setMaster('local[*]')
+spark = SparkSession.builder.config(conf = conf).getOrCreate()
 
 def retrieve_sqlite(sqlite_conn_url):
     db = {}
@@ -228,10 +228,7 @@ if __name__ == "__main__":
     sonar_data_directory = "./sonarcloud_data/data"
     sqlite_conn_url = "jdbc:sqlite:/home/hung/MyWorksapce/BachelorThesis/SQLite-Database/technicalDebtDataset.db"
 
-    # db = retrieve_sqlite(sqlite_conn_url)
-    # projects_df = db['PROJECTS']
-    # refactoring_miner_df = db['REFACTORING_MINER']
-
+    # db = retrieve_sqlite(sqlite_conn_url) No suitable driver
     # refactoring_miner_df = refactoring_miner_df.filter("refactoringType IS NOT NULL")
     # refactoring_miner_df.persist()
     # refactoring_miner_df.createOrReplaceTempView("REFACTORING_MINER")
@@ -242,22 +239,25 @@ if __name__ == "__main__":
 
 
     jenkins_builds_df = get_jenkins_builds_data(jenkins_data_directory)
-    jenkins_builds_df = jenkins_builds_df.filter("revision_number IS NOT NULL")
+    jenkins_builds_df = jenkins_builds_df.filter("job IS NOT NULL")
     jenkins_builds_df.persist()
-    jenkins_builds_df.show(5)
-    #jenkins_builds_df.repartition(1).write.csv('./jenkins_builds.csv', header=True)
     print("Jenkins Count: ", jenkins_builds_df.count())
 
     sonar_df = get_sonar_data(sonar_data_directory)
-    sonar_df = sonar_df.filter("revision IS NOT NULL")
+    sonar_df = sonar_df.filter("project IS NOT NULL")
     sonar_df.persist()
-    sonar_df.collect()
-    sonar_df.show(5)
     print("Sonar Count: ", sonar_df.count())
 
-    result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
-    result.cache()
-    
-    print("Result Count: ",result.count())
+    url = "jdbc:postgresql://127.0.0.1:5432/pra"
+    properties = {"user": "pra", "password": "pra"}
 
+    jenkins_builds_df.write.jdbc(url, table="jenkins_builds", mode = 'append', properties=properties)
+    sonar_df.write.jdbc(url, table="sonarqube", mode = 'append', properties=properties)
+
+    # result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
+    # result.cache()
+    
+    # print("Result Count: ",result.count())
+
+    print("FINISH!!!!!!")
     spark.stop()
