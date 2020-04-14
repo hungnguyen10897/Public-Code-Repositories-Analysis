@@ -44,7 +44,7 @@ SONAR_DTYPE = {
     'skipped_tests': 'Int64',
     'test_failures': 'Int64',
     'tests': 'Int64',
-    'test_execution_time': 'object',
+    'test_execution_time': 'Int64',
     'test_success_density': 'float64',
     'coverage': 'float64',
     'lines_to_cover': 'Int64',

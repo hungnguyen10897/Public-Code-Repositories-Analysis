@@ -27,7 +27,7 @@ SONAR_DTYPE = {
     'skipped_tests': 'Int64',
     'test_failures': 'Int64',
     'tests': 'Int64',
-    'test_execution_time': 'object',
+    'test_execution_time': 'Int64',
     'test_success_density': 'float64',
     'coverage': 'float64',
     'lines_to_cover': 'Int64',
@@ -239,9 +239,12 @@ def safe_cast(val, to_type, contain_comma = False):
         except (ValueError, TypeError):
             print(f"WARNING: exception casting value {str(val)} to type {to_type}")
             return None
-    elif type == 'MILLISEC':
+    elif to_type == 'MILLISEC':
         try:
-            return datetime.fromtimestamp(int(val)/1000)
+            if len(val) >= 12:
+                return datetime.fromtimestamp(int(val)/1000)
+            else:
+                return int(val)
         except (ValueError, TypeError):
             print(f"WARNING: exception casting value {str(val)} to type {to_type}")
             return None
@@ -270,7 +273,7 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
         values.reverse()
 
         # Resolving None Integer values
-        if type in ['INT' ,'WORK_DUR']:
+        if SONAR_DTYPE[metric] == "Int64":
             data[metric] = pd.array(values, dtype=pd.Int64Dtype())
         else:
             data[metric] = values
