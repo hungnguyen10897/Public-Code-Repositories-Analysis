@@ -1,4 +1,4 @@
-# pyspark --driver-class-pathpostgresql-42.2.12.jar
+# pyspark --driver-class-path postgresql-42.2.12.jar
 # spark-submit --driver-class-path postgresql-42.2.12.jar spark.py
 from pyspark.sql import SparkSession
 from pathlib import Path
@@ -141,6 +141,118 @@ SONAR_DTYPE = OrderedDict({
     'ncloc_language_distribution': 'object',
     'new_lines': 'object'})
 
+# Drop these columns due to too many nulls
+TO_DROP_SONAR_COLUMNS = [
+    "class_complexity",
+    "function_complexity",
+    "function_complexity_distribution",
+    "file_complexity_distribution",
+    "complexity_in_classes",
+    "complexity_in_functions",
+    "new_coverage",
+    "new_lines_to_cover",
+    "new_uncovered_lines",
+    "new_line_coverage",
+    "new_conditions_to_cover",
+    'new_uncovered_conditions',
+    "new_branch_coverage",
+    "executable_lines_data",
+    "public_api",
+    "public_documented_api_density",
+    "public_undocumented_api",
+    "duplications_data",
+    "new_duplicated_lines",
+    "new_duplicated_blocks",
+    "new_duplicated_lines_density",
+    "new_violations",
+    "new_blocker_violations",
+    "new_critical_violations",
+    "new_major_violations",
+    "new_minor_violations",
+    "new_info_violations",
+    "new_technical_debt",
+    "new_code_smells",
+    "new_maintainability_rating",
+    "new_bugs",
+    "new_reliability_remediation_effort",
+    "new_reliability_rating",
+    "new_vulnerabilities",
+    "new_security_remediation_effort",
+    "new_security_rating",
+    "new_security_hotspots",
+    "directories",
+    "generated_lines",
+    "generated_ncloc",
+    "ncloc_data",
+    "comment_lines_data",
+    "projects",
+    "new_lines",
+]
+
+# TRAINING_COLUMNS = [
+#     complexity
+#     file_complexity
+#     cognitive_complexity
+#     test_errors
+#     skipped_tests
+#     test_failures
+#     tests
+#     test_execution_time
+#     test_success_density
+#     coverage
+#     lines_to_cover
+#     uncovered_lines
+#     line_coverage
+#     conditions_to_cover
+#     uncovered_conditions
+#     branch_coverage
+#     duplicated_lines
+#     duplicated_lines_density
+#     duplicated_blocks
+#     duplicated_files
+#     quality_profiles
+#     quality_gate_details
+#     violations
+#     blocker_violations
+#     critical_violations
+#     major_violations
+#     minor_violations
+#     info_violations
+#     false_positive_issues
+#     open_issues
+#     reopened_issues
+#     confirmed_issues
+#     wont_fix_issues
+#     sqale_index
+#     sqale_rating
+#     development_cost
+#     sqale_debt_ratio
+#     new_sqale_debt_ratio
+#     code_smells
+#     effort_to_reach_maintainability_rating_a
+#     new_development_cost
+#     alert_status
+#     bugs
+#     reliability_remediation_effort
+#     reliability_rating
+#     last_commit_date
+#     vulnerabilities
+#     security_remediation_effort
+#     security_rating
+#     security_hotspots
+#     security_review_rating
+#     classes
+#     ncloc
+#     functions
+#     comment_lines
+#     comment_lines_density
+#     files
+#     lines
+#     statements
+#     ncloc_language_distribution
+#     ingested_at
+# ]
+
 conf = SparkConf().setMaster('local[*]')
 spark = SparkSession.builder.config(conf = conf).getOrCreate()
 
@@ -181,7 +293,7 @@ def refactor_type_count(refactoring_miner_df):
     return spark.sql(sql_str)
 
 def get_jenkins_builds_data(jenkins_data_directory):
-    
+
     data_path = Path(jenkins_data_directory)
     builds_path = data_path.joinpath('builds')
 
@@ -216,7 +328,7 @@ def get_sonar_data(sonar_data_directory):
         elif type == 'Int64':
             field.append(StructField(col, IntegerType(), True))
         elif type == 'float64':
-            field.append(StructField(col, FloatType(), True))
+            field.append(StructField(col, DoubleType(), True))
 
     schema = StructType(field)
     df = spark.read.csv(str(csv_path.absolute())+ "/*_staging.csv", sep=',', schema = schema, ignoreLeadingWhiteSpace = True, ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
@@ -245,6 +357,7 @@ if __name__ == "__main__":
 
     sonar_df = get_sonar_data(sonar_data_directory)
     sonar_df = sonar_df.filter("project IS NOT NULL")
+    sonar_df = sonar_df.drop(*TO_DROP_SONAR_COLUMNS)
     sonar_df.persist()
     print("Sonar Count: ", sonar_df.count())
 
