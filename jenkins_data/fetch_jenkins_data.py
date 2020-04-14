@@ -61,7 +61,8 @@ def extract_test_data(test_report, job_name, build_number, build_only):
     test_cases_result = []
 
     #Each suite test a class
-    for suite in test_report['suites']:
+    suites = [] if 'suites' not in test_report else test_report['suites']
+    for suite in suites:
 
         class_structure = suite['name'].split('.')
         package = ".".join(class_structure[:-1])
@@ -286,9 +287,9 @@ def get_jobs_info(name, server, is_job, output_dir_str):
             else:
                 if num_builds == 100:
                     full_job_info = server.get_job_info(job_name, depth= 0, fetch_all_builds = True)
-                    jobs_info.append((full_job_info, latest_build_on_file))
+                    jobs_info.append((full_job_info, None))
                 else:
-                    jobs_info.append((job_info, latest_build_on_file))
+                    jobs_info.append((job_info, None))
 
     return jobs_info
 
@@ -384,17 +385,15 @@ if __name__ == "__main__":
 
     ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
     ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'")
-    # ap.add_argument("-l", "--load", choices=['first_load', 'incremental_load'], default='incremental_load', help="First load or incremental load, same if no data is available")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
-    ap.add_argument("-p","--projects", default = './projects_test.csv', help = "Path to a file containing names of all projects to load")
-    ap.add_argument("-a","--all", action="store_true", help = "Load data from all jobs available on the server, this will ignore -p argument")
+    ap.add_argument("-p","--projects", help = "Path to a file containing names of all projects to load, if not provided, load data from all jobs available on the server.")
 
     args = vars(ap.parse_args())
 
     build_only = args['build_only']
     output_path = args['output_path']
-    projects_path = args['projects']
-    all = args['all']
+    projects_path = None if 'projects' not in args else args['projects']
 
+    all = True if projects_path is None else False
     fetch_jenkins(all, projects_path, output_path, build_only)
 
