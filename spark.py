@@ -4,6 +4,8 @@ from pyspark.sql import SparkSession
 from pathlib import Path
 from pyspark.sql import DataFrame
 from pyspark.sql.types import *
+from pyspark.sql.utils import AnalysisException
+
 from pyspark import SparkContext, SparkConf
 from collections import OrderedDict
 from functools import reduce
@@ -49,7 +51,7 @@ SONAR_DTYPE = OrderedDict({
     'skipped_tests': 'Int64',
     'test_failures': 'Int64',
     'tests': 'Int64',
-    'test_execution_time': 'object',
+    'test_execution_time': 'Int64',
     'test_success_density': 'float64',
     'coverage': 'float64',
     'lines_to_cover': 'Int64',
@@ -189,117 +191,90 @@ TO_DROP_SONAR_COLUMNS = [
     "new_lines",
 ]
 
-# TRAINING_COLUMNS = [
-#     complexity
-#     file_complexity
-#     cognitive_complexity
-#     test_errors
-#     skipped_tests
-#     test_failures
-#     tests
-#     test_execution_time
-#     test_success_density
-#     coverage
-#     lines_to_cover
-#     uncovered_lines
-#     line_coverage
-#     conditions_to_cover
-#     uncovered_conditions
-#     branch_coverage
-#     duplicated_lines
-#     duplicated_lines_density
-#     duplicated_blocks
-#     duplicated_files
-#     quality_profiles
-#     quality_gate_details
-#     violations
-#     blocker_violations
-#     critical_violations
-#     major_violations
-#     minor_violations
-#     info_violations
-#     false_positive_issues
-#     open_issues
-#     reopened_issues
-#     confirmed_issues
-#     wont_fix_issues
-#     sqale_index
-#     sqale_rating
-#     development_cost
-#     sqale_debt_ratio
-#     new_sqale_debt_ratio
-#     code_smells
-#     effort_to_reach_maintainability_rating_a
-#     new_development_cost
-#     alert_status
-#     bugs
-#     reliability_remediation_effort
-#     reliability_rating
-#     last_commit_date
-#     vulnerabilities
-#     security_remediation_effort
-#     security_rating
-#     security_hotspots
-#     security_review_rating
-#     classes
-#     ncloc
-#     functions
-#     comment_lines
-#     comment_lines_density
-#     files
-#     lines
-#     statements
-#     ncloc_language_distribution
-#     ingested_at
-# ]
+TRAINING_COLUMNS = [
+    "complexity"
+    "file_complexity",
+    "cognitive_complexity",
+    "test_errors",
+    "skipped_tests",
+    "test_failures",
+    "tests",
+    "test_execution_time",
+    "test_success_density",
+    "coverage",
+    "lines_to_cover",
+    "uncovered_lines",
+    "line_coverage",
+    "conditions_to_cover",
+    "uncovered_conditions",
+    "branch_coverage",
+    "duplicated_lines",
+    "duplicated_lines_density",
+    "duplicated_blocks",
+    "duplicated_files",
+    "violations",
+    "blocker_violations",
+    "critical_violations",
+    'major_violations',
+    "minor_violations",
+    "info_violations",
+    "false_positive_issues",
+    "open_issues",
+    "reopened_issues",
+    "confirmed_issues",
+    "wont_fix_issues",
+    "sqale_index",
+    "sqale_rating"
+    "development_cost",
+    "sqale_debt_ratio",
+    "new_sqale_debt_ratio",
+    "code_smells",
+    "effort_to_reach_maintainability_rating_a",
+    "new_development_cost",
+    "alert_status",
+    'bugs'
+    "reliability_remediation_effort",
+    "reliability_rating",
+    "vulnerabilities",
+    "security_remediation_effort",
+    "security_rating",
+    "security_hotspots",
+    "security_review_rating",
+    "classes",
+    "ncloc",
+    "functions",
+    "comment_lines",
+    "comment_lines_density",
+    "files",
+    "lines",
+    "statements"
+]
+
+CATEGORICAL_COLUMNS = [
+
+    "alert_status"
+]
 
 conf = SparkConf().setMaster('local[*]')
+sc = SparkContext
 spark = SparkSession.builder.config(conf = conf).getOrCreate()
 
-def retrieve_sqlite(sqlite_conn_url):
-    db = {}
+def get_source_data(source ,data_directory):
 
-    projects_properties = {}
-    projects_properties['customSchema'] = "projectID STRING, gitLink STRING, jiraLink STRING, sonarProjectKey STRING"
-    projects_df = spark.read.jdbc(sqlite_conn_url, 'PROJECTS', properties = projects_properties)
-    db['PROJECTS'] = projects_df
-
-    refactoring_miner_properties = {}
-    refactoring_miner_properties['customSchema'] = "projectID STRING, commitHash STRING, refactoringType STRING, refactoringDetail STRING"
-    refactoring_miner_df = spark.read.jdbc(sqlite_conn_url, 'REFACTORING_MINER', properties = refactoring_miner_properties)
-    db['REFACTORING_MINER'] = refactoring_miner_df
-
-    return db
-
-def refactor_type_count(refactoring_miner_df):
-
-    rows = refactoring_miner_df.select("refactoringType").distinct().collect()
-    select_statement = []
-    for row in rows:
-        type = row.refactoringType
-        comparison_str = "\'" + row.refactoringType + "\'"
-        field_name = type.replace(' ','_') + "_Count"
-        sum_str = f"SUM(case refactoringType when {comparison_str} then 1 else 0 end) AS {field_name}"
-        select_statement.append(sum_str)
-    
-    sql_str = f"""
-        SELECT 
-            projectID,
-            commitHash,
-            {",".join(select_statement)}
-        FROM REFACTORING_MINER GROUP BY projectID,commitHash
-    """
-
-    return spark.sql(sql_str)
-
-def get_jenkins_builds_data(jenkins_data_directory):
-
-    data_path = Path(jenkins_data_directory)
-    builds_path = data_path.joinpath('builds')
+    data_path = Path(data_directory)
+    if source == "jenkins builds":
+        files_dir = data_path.joinpath('builds')
+        DTYPE = JENKINS_BUILD_DTYPE
+    elif source == "jenkins tests":
+        files_dir = data_path.joinpath('tests')
+        DTYPE = JENKINS_TEST_DTYPE
+    elif source == "sonarqube":
+        files_dir = data_path.joinpath('csv')
+        DTYPE = SONAR_DTYPE
 
     field = []
-    for col,type in JENKINS_BUILD_DTYPE.items():
-        if col == 'commit_ts':
+    for col,type in DTYPE.items():
+        if col in ['date', 'last_commit_date', 'commit_ts']:
             field.append(StructField(col, TimestampType(), True))
         elif type == 'object':
             field.append(StructField(col, StringType(), True))
@@ -309,53 +284,29 @@ def get_jenkins_builds_data(jenkins_data_directory):
             field.append(StructField(col, DoubleType(), True))
 
     schema = StructType(field)
-    df = spark.read.csv(str(builds_path.absolute()) + '/*.csv', sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
-        ignoreTrailingWhiteSpace = True, header=True)
+    print(str(files_dir.absolute()))
+    try:
+        df = spark.read.csv(str(files_dir.absolute()) + '/*_staging.csv', sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
+            ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
+    except AnalysisException:
+        print(f"No _staging csv for [{source}]")
+        df = spark.createDataFrame(spark.sparkContext.emptyRDD(), schema)
     return df
 
-
-def get_sonar_data(sonar_data_directory):
-
-    path = Path(sonar_data_directory)
-    csv_path = path.joinpath("csv")
-
-    field = []
-    for col,type in SONAR_DTYPE.items():
-        if col == 'date':
-            field.append(StructField(col, TimestampType(), True))
-        elif type == 'object':
-            field.append(StructField(col, StringType(), True))
-        elif type == 'Int64':
-            field.append(StructField(col, IntegerType(), True))
-        elif type == 'float64':
-            field.append(StructField(col, DoubleType(), True))
-
-    schema = StructType(field)
-    df = spark.read.csv(str(csv_path.absolute())+ "/*_staging.csv", sep=',', schema = schema, ignoreLeadingWhiteSpace = True, ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
-    return df
+def first_ml_train():
+    pass
 
 if __name__ == "__main__":
 
     jenkins_data_directory = "./jenkins_data/data"
     sonar_data_directory = "./sonarcloud_data/data"
-    sqlite_conn_url = "jdbc:sqlite:/home/hung/MyWorksapce/BachelorThesis/SQLite-Database/technicalDebtDataset.db"
 
-    # db = retrieve_sqlite(sqlite_conn_url) No suitable driver
-    # refactoring_miner_df = refactoring_miner_df.filter("refactoringType IS NOT NULL")
-    # refactoring_miner_df.persist()
-    # refactoring_miner_df.createOrReplaceTempView("REFACTORING_MINER")
-
-    # refactor_count_df = refactor_type_count(refactoring_miner_df)
-    # refactor_count_df.persist()
-    # refactoring_miner_df.unpersist()
-
-
-    jenkins_builds_df = get_jenkins_builds_data(jenkins_data_directory)
+    jenkins_builds_df = get_source_data("jenkins builds",jenkins_data_directory)
     jenkins_builds_df = jenkins_builds_df.filter("job IS NOT NULL")
     jenkins_builds_df.persist()
     print("Jenkins Count: ", jenkins_builds_df.count())
 
-    sonar_df = get_sonar_data(sonar_data_directory)
+    sonar_df = get_source_data("sonarqube", sonar_data_directory)
     sonar_df = sonar_df.filter("project IS NOT NULL")
     sonar_df = sonar_df.drop(*TO_DROP_SONAR_COLUMNS)
     sonar_df.persist()
@@ -364,8 +315,8 @@ if __name__ == "__main__":
     url = "jdbc:postgresql://127.0.0.1:5432/pra"
     properties = {"user": "pra", "password": "pra"}
 
-    jenkins_builds_df.write.jdbc(url, table="jenkins_builds", mode = 'append', properties=properties)
-    sonar_df.write.jdbc(url, table="sonarqube", mode = 'append', properties=properties)
+    # jenkins_builds_df.write.jdbc(url, table="jenkins_builds", mode = 'append', properties=properties)
+    # sonar_df.write.jdbc(url, table="sonarqube", mode = 'append', properties=properties)
 
     # result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
     # result.cache()
@@ -373,4 +324,3 @@ if __name__ == "__main__":
     # print("Result Count: ",result.count())
 
     print("FINISH!!!!!!")
-    spark.stop()
