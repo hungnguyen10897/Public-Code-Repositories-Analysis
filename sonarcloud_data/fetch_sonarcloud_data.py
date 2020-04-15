@@ -76,7 +76,7 @@ SONAR_DTYPE = {
     'wont_fix_issues': 'Int64',
     'sqale_index': 'Int64',
     'sqale_rating': 'float64',
-    'development_cost': 'object',
+    'development_cost': 'float64',
     'new_technical_debt': 'object',
     'sqale_debt_ratio': 'float64',
     'new_sqale_debt_ratio': 'float64',

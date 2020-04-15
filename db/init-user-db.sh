@@ -90,7 +90,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		wont_fix_issues INT,
 		sqale_index INT,
 		sqale_rating FLOAT,
-		development_cost VARCHAR,
+		development_cost FLOAT,
 		sqale_debt_ratio FLOAT,
 		new_sqale_debt_ratio FLOAT,
 		code_smells INT,
