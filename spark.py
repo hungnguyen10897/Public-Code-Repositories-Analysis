@@ -5,6 +5,10 @@ from pathlib import Path
 from pyspark.sql import DataFrame
 from pyspark.sql.types import *
 from pyspark.sql.utils import AnalysisException
+from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, VectorAssembler, MinMaxScaler
+from pyspark.ml import Pipeline
+from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
 from pyspark import SparkContext, SparkConf
 from collections import OrderedDict
@@ -22,7 +26,8 @@ JENKINS_BUILD_DTYPE = OrderedDict({
     "test_pass_count" : "Int64",
     "test_fail_count" : "Int64",
     "test_skip_count" : "Int64",
-    "total_test_duration" : "float64"})
+    "total_test_duration" : "float64"
+    })
 
 JENKINS_TEST_DTYPE = OrderedDict({
     "job" : "object",
@@ -100,7 +105,7 @@ SONAR_DTYPE = OrderedDict({
     'wont_fix_issues': 'Int64',
     'sqale_index': 'Int64',
     'sqale_rating': 'float64',
-    'development_cost': 'object',
+    'development_cost': 'float64',
     'new_technical_debt': 'object',
     'sqale_debt_ratio': 'float64',
     'new_sqale_debt_ratio': 'float64',
@@ -191,8 +196,14 @@ TO_DROP_SONAR_COLUMNS = [
     "new_lines",
 ]
 
-TRAINING_COLUMNS = [
-    "complexity"
+NUMERICAL_COLUMNS = [
+    "duration",
+    "estimated_duration",
+    "test_pass_count",
+    "test_fail_count",
+    "test_skip_count",
+    "total_test_duration",
+    "complexity",
     "file_complexity",
     "cognitive_complexity",
     "test_errors",
@@ -224,15 +235,14 @@ TRAINING_COLUMNS = [
     "confirmed_issues",
     "wont_fix_issues",
     "sqale_index",
-    "sqale_rating"
+    "sqale_rating",
     "development_cost",
     "sqale_debt_ratio",
     "new_sqale_debt_ratio",
     "code_smells",
     "effort_to_reach_maintainability_rating_a",
     "new_development_cost",
-    "alert_status",
-    'bugs'
+    'bugs',
     "reliability_remediation_effort",
     "reliability_rating",
     "vulnerabilities",
@@ -251,7 +261,6 @@ TRAINING_COLUMNS = [
 ]
 
 CATEGORICAL_COLUMNS = [
-
     "alert_status"
 ]
 
@@ -279,22 +288,71 @@ def get_source_data(source ,data_directory):
         elif type == 'object':
             field.append(StructField(col, StringType(), True))
         elif type == 'Int64':
-            field.append(StructField(col, IntegerType(), True))
+            field.append(StructField(col, LongType(), True))
         elif type == 'float64':
             field.append(StructField(col, DoubleType(), True))
 
     schema = StructType(field)
-    print(str(files_dir.absolute()))
     try:
-        df = spark.read.csv(str(files_dir.absolute()) + '/*_staging.csv', sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
+        df = spark.read.csv(str(files_dir.absolute()) + '/*.csv', sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
             ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
     except AnalysisException:
         print(f"No _staging csv for [{source}]")
         df = spark.createDataFrame(spark.sparkContext.emptyRDD(), schema)
     return df
 
-def first_ml_train():
-    pass
+def get_ml_pipeline():
+    stages = []
+
+    ohe_input_cols = []
+    ohe_output_cols = []
+    for categorical_column in CATEGORICAL_COLUMNS:
+        str_indexer = StringIndexer(inputCol=categorical_column, outputCol=categorical_column + "_index", handleInvalid='keep')
+        ohe_input_cols.append(str_indexer.getOutputCol())
+        ohe_output_cols.append(categorical_column + "_classVec")
+        stages.append(str_indexer)
+
+    encoder = OneHotEncoderEstimator(inputCols=ohe_input_cols, outputCols=ohe_output_cols, handleInvalid="keep")
+    stages.append(encoder)
+
+
+    scaled_numerical_columns = []
+    for numerical_column in NUMERICAL_COLUMNS:
+        numerical_vector_assembler = VectorAssembler(inputCols=[numerical_column], outputCol=numerical_column + "_vec", handleInvalid="keep")
+        stages.append(numerical_vector_assembler)
+        scaled_numerical_column = numerical_column + "_scaled"
+        scaled_numerical_columns.append(scaled_numerical_column)
+        scaler = MinMaxScaler(inputCol= numerical_column + "_vec", outputCol=scaled_numerical_column)
+        stages.append(scaler)
+
+    label_str_indexer = StringIndexer(inputCol="result", outputCol="label", handleInvalid="keep")
+    stages.append(label_str_indexer)
+
+    assembler_input = encoder.getOutputCols() + scaled_numerical_columns
+    assembler = VectorAssembler(inputCols= assembler_input, outputCol="features", handleInvalid="skip")
+    stages.append(assembler)
+
+    pipeline = Pipeline(stages = stages)
+    return pipeline
+
+def first_ml_train(result_df):
+    
+    pipeline = get_ml_pipeline()
+
+    pipeline_model = pipeline.fit(result_df)
+    df = pipeline_model.transform(result_df)
+
+    train,test = df.randomSplit([0.7, 0.3], seed = 2020)
+    train.persist()
+    test.persist()
+    print("Training Dataset Count: " + str(train.count()))
+    print("Test Dataset Count: " + str(test.count()))
+
+    lr = LogisticRegression(featuresCol='features', labelCol='label', maxIter=10)
+    lrModel = lr.fit(train)
+
+    predictions = lrModel.transform(test)
+    # evaluator = MulticlassClassificationEvaluator()
 
 if __name__ == "__main__":
 
@@ -318,9 +376,11 @@ if __name__ == "__main__":
     # jenkins_builds_df.write.jdbc(url, table="jenkins_builds", mode = 'append', properties=properties)
     # sonar_df.write.jdbc(url, table="sonarqube", mode = 'append', properties=properties)
 
-    # result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
-    # result.cache()
-    
-    # print("Result Count: ",result.count())
+    result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
+    result.collect()
+    result.cache()  
+    print("Result Count: ",result.count())
+
+    first_ml_train(result)
 
     print("FINISH!!!!!!")
