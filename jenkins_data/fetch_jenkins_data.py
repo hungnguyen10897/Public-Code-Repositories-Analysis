@@ -70,8 +70,10 @@ def extract_test_data(test_report, job_name, build_number, build_only):
 
         # Each case tests something different in a class
         for case in suite['cases']:
+
+            name = case['name'].replace("\n","_").replace("\r","_")
         
-            test_cases_result.append((job_name, build_number, package, class_,case['name'],\
+            test_cases_result.append((job_name, build_number, package, class_,name,\
             case['duration'], case['status']))
     
     return (test_duration, test_cases_result)

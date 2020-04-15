@@ -169,7 +169,7 @@ def main(jenkins_data_dir, sonar_data_dir):
 
     sonar_csv_dir = sonar_data_dir.joinpath("csv")
     if not sonar_csv_dir.exists():
-        print(f"ERROR: Sonar data directory does not exsists: {sonar_csv_dir.resolve()}")
+        print(f"ERROR: Sonar data directory does not exsist: {sonar_csv_dir.resolve()}")
         sys.exit(1)
 
     dirs = [jenkins_builds_dir, jenkins_tests_dir, sonar_csv_dir]
@@ -183,8 +183,8 @@ if __name__ == "__main__":
     
     ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")
 
-    ap.add_argument("-j","--jenkins", default='./sonar_data' , help="Path to jenkins data directory.")
-    ap.add_argument("-s", "--sonar", default = "", help = "Path to Sonarqube data directory.")
+    ap.add_argument("-j","--jenkins", default='./jenkins_data/data' , help="Path to jenkins data directory.")
+    ap.add_argument("-s", "--sonar", default = "./sonarcloud_data/data", help = "Path to Sonarqube data directory.")
 
     args = vars(ap.parse_args())
 
