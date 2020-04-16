@@ -13,6 +13,7 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
 from pathlib import Path
 from collections import OrderedDict
+import time
 
 JENKINS_BUILD_DTYPE = OrderedDict({
     "job" : "object",
@@ -338,114 +339,92 @@ def get_ml_pipeline():
     pipeline = Pipeline(stages = stages)
     return pipeline
 
-def first_ml_train(result_df, spark_artefacts_dir):
+def apply_ml(df, spark_artefacts_dir, run_mode):
 
+    # Change data type from Int to Float to fit into estimators
     for column_name in NUMERICAL_COLUMNS:
         if column_name in JENKINS_BUILD_DTYPE:
             if JENKINS_BUILD_DTYPE[column_name] == 'Int64':
-                result_df = result_df.withColumn(column_name, result_df[column_name].astype(DoubleType()))
+                df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
         elif column_name in SONAR_DTYPE:
             if SONAR_DTYPE[column_name] == 'Int64':
-                result_df = result_df.withColumn(column_name, result_df[column_name].astype(DoubleType()))
+                df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
 
-    pipeline = get_ml_pipeline()
-    pipeline_model = pipeline.fit(result_df)
     pipeline_path = Path(spark_artefacts_dir).joinpath("pipeline")
-    pipeline_model.save(str(pipeline_path.absolute()))
+    if run_mode == "first":
+        pipeline = get_ml_pipeline()
+        pipeline_model = pipeline.fit(df)
+        pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
 
-    ml_df = pipeline_model.transform(result_df)
-    features_df = ml_df.select('features','label')
+        ml_df = pipeline_model.transform(df).select('features','label')
 
-    train,test = features_df.randomSplit([0.7, 0.3], seed = 2020)
-    train.persist()
-    test.persist()
-    print("Training Dataset Count: " + str(train.count()))
-    print("Test Dataset Count: " + str(test.count()))
+        train,test = ml_df.randomSplit([0.7, 0.3])
+        train.persist()
+        test.persist()
+        print("Training Dataset Count: " + str(train.count()))
+        print("Test Dataset Count: " + str(test.count()))
 
-    lr = LogisticRegression(featuresCol='features', labelCol='label', maxIter=10)
-    dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=5)
-    rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
+        lr = LogisticRegression(featuresCol='features', labelCol='label', maxIter=10)
+        dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=5)
+        rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
 
-    for algo, model_name in [(lr,"LogisticRegression"),(dt,"DecisionTree"),(rf,"RandomForest")]:
+        for algo, model_name in [(lr,"LogisticRegressionModel"),(dt,"DecisionTreeModel"),(rf,"RandomForestModel")]:
 
-        print(f"{str(model_name)}")
-        model = algo.fit(train)
-        model_path = Path(spark_artefacts_dir).joinpath(model_name)
-        model.save(str(model_path.absolute()))
-        
-        predictions = model.transform(test)
-        predictions.cache()
-        evaluator = MulticlassClassificationEvaluator()
-        for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
-            print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
+            print(f"{str(model_name)}")
+            model = algo.fit(train)
+            model_path = Path(spark_artefacts_dir).joinpath(model_name)
+            model.write().overwrite().save(str(model_path.absolute()))
+            
+            predictions = model.transform(test)
+            predictions.cache()
+            evaluator = MulticlassClassificationEvaluator()
+            for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
+                print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
 
-def first_run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir):
+    elif run_mode == "incremental":
+        pipeline = Pipeline.load(pipeline_path)
+        ml_df = pipeline.transform(df).select('features','label')
+    
+        for model, name in [(LogisticRegressionModel, "LogisticRegressionModel"), (DecisionTreeClassificationModel, "DecisionTreeModel"), (RandomForestClassificationModel, "RandomForestModel")]:
+            model_path = Path(spark_artefacts_dir).joinpath(name)
+            ml_model = model.load(str(model_path.absolute()))
 
-    jenkins_builds_df = get_source_data("jenkins builds",jenkins_data_directory, "first")
+            predictions = ml_model.transform(ml_df)
+            predictions.cache()
+            evaluator = MulticlassClassificationEvaluator()
+            for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
+                print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
+
+def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
+
+    if run_mode == "incremental":
+        for obj in ["pipeline","LogisticRegressionModel","DecisionTreeModel","RandomForestModel"]:
+            obj_path = Path(spark_artefacts_dir).joinpath(obj)
+            if not obj_path.exists():
+                print(f"{obj} does not exist in spark_artefacts. Rerun with run_mode = first")
+                run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+
+    jenkins_builds_df = get_source_data("jenkins builds",jenkins_data_directory, run_mode)
     jenkins_builds_df = jenkins_builds_df.filter("job IS NOT NULL")
     jenkins_builds_df.persist()
     print("Jenkins Count: ", jenkins_builds_df.count())
 
-    sonar_df = get_source_data("sonarqube", sonar_data_directory, "first")
+    sonar_df = get_source_data("sonarqube", sonar_data_directory, run_mode)
     sonar_df = sonar_df.filter("project IS NOT NULL")
     sonar_df = sonar_df.drop(*TO_DROP_SONAR_COLUMNS)
     sonar_df.persist()
     print("Sonar Count: ", sonar_df.count())
 
-    # jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = 'overwrite', properties=CONNECTION_STR)
-    # sonar_df.write.jdbc(CONNECTION_STR, table="sonarqube", mode = 'overwrite', properties=CONNECTION_STR)
+    # write_mode = "overwrite" if run_mode == "first" else "append"
+    # jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # sonar_df.write.jdbc(CONNECTION_STR, table="sonarqube", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
     result.collect()
     result.cache()  
     print("Result Count: ",result.count())
-    print("Result count without na: ", result.dropna().count())
 
-    first_ml_train(result, spark_artefacts_dir)
-
-def incremental_run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir):
-
-    jenkins_builds_df = get_source_data("jenkins builds",jenkins_data_directory, "incremental")
-    jenkins_builds_df = jenkins_builds_df.filter("job IS NOT NULL")
-    jenkins_builds_df.persist()
-    print("Jenkins Count: ", jenkins_builds_df.count())
-
-    sonar_df = get_source_data("sonarqube", sonar_data_directory, "incremental")
-    sonar_df = sonar_df.filter("project IS NOT NULL")
-    sonar_df = sonar_df.drop(*TO_DROP_SONAR_COLUMNS)
-    sonar_df.persist()
-    print("Sonar Count: ", sonar_df.count())
-
-    jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = 'append', properties=CONNECTION_STR)
-    sonar_df.write.jdbc(CONNECTION_STR, table="sonarqube", mode = 'append', properties=CONNECTION_STR)
-
-    result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
-    result.collect()
-    result.cache()  
-    print("Result Count: ",result.count())
-    print("Result count without na: ", result.dropna().count())
-
-    for column_name in NUMERICAL_COLUMNS:
-        if column_name in JENKINS_BUILD_DTYPE:
-            if JENKINS_BUILD_DTYPE[column_name] == 'Int64':
-                result = result.withColumn(column_name, result[column_name].astype(DoubleType()))
-        elif column_name in SONAR_DTYPE:
-            if SONAR_DTYPE[column_name] == 'Int64':
-                result = result.withColumn(column_name, result[column_name].astype(DoubleType()))
-
-    pipeline_path = Path(spark_artefacts_dir).joinpath("pipeline")
-    pipeline = Pipeline.load(pipeline_path)
-    ml_df = pipeline.transform(result)
-
-    for model, name in [(LogisticRegressionModel, "LogisticRegression"), (DecisionTreeClassificationModel, "DecisionTree"), (RandomForestClassificationModel, "RandomForest")]:
-        model_path = Path(spark_artefacts_dir).joinpath(name)
-        ml_model = model.load(str(model_path.absolute()))
-
-        predictions = ml_model.transform(ml_df)
-        predictions.cache()
-        evaluator = MulticlassClassificationEvaluator()
-        for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
-            print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
+    apply_ml(result, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
 
@@ -453,7 +432,12 @@ if __name__ == "__main__":
     sonar_data_directory = "./sonarcloud_data/data"
     spark_artefacts_dir = "./spark_artefacts"
 
-    first_run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir)
-    # incremental_run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir)
+    mode = "first"
+    then = time.time()
+    print(f"Start Spark processing - mode: {mode.upper()}")
 
-    print("FINISH!!!!!!")
+    run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+    # run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "incremental")
+
+    spark.stop()
+    print(f"Time elapsed: {time.time() - then}")
