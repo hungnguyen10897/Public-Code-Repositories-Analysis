@@ -13,4 +13,5 @@ sonarcloud_data/agg_sonar.csv
 sonarcloud_data/metrics.txt
 sonarcloud_data/sonar_data/
 **/test.py
+spark_artefacts/
 
