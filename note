@@ -26,3 +26,6 @@ $ airflow initdb
 $ airflow scheduler
 $ airflow webserver
 
+## Spark and ML
+- predictions.select("label","prediction").groupby("label","prediction").count().show()  To show how the model is performing
+

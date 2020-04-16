@@ -8,7 +8,7 @@ from pyspark.sql.utils import AnalysisException
 from pyspark.sql.functions import col
 from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, VectorAssembler, MinMaxScaler, Imputer
 from pyspark.ml import Pipeline
-from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.classification import LogisticRegression, DecisionTreeClassifier, RandomForestClassifier, GBTClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
 from pathlib import Path
@@ -315,20 +315,15 @@ def get_ml_pipeline():
     encoder = OneHotEncoderEstimator(inputCols=ohe_input_cols, outputCols=ohe_output_cols, handleInvalid="keep")
     stages.append(encoder)
 
-    scaled_numerical_columns = []
-    for numerical_column in NUMERICAL_COLUMNS:
-        numerical_vector_assembler = VectorAssembler(inputCols=[numerical_column], outputCol=numerical_column + "_vec", handleInvalid="keep")
-        stages.append(numerical_vector_assembler)
-
-        scaled_numerical_column = numerical_column + "_scaled"
-        scaled_numerical_columns.append(scaled_numerical_column)
-        scaler = MinMaxScaler(inputCol= numerical_vector_assembler.getOutputCol(), outputCol=scaled_numerical_column)
-        stages.append(scaler)
+    numerical_vector_assembler = VectorAssembler(inputCols=NUMERICAL_COLUMNS, outputCol="numerial_cols_vec", handleInvalid="keep")
+    scaler = MinMaxScaler(inputCol="numerial_cols_vec", outputCol= "scaled_numerical_cols")
+    stages.append(numerical_vector_assembler)
+    stages.append(scaler)
 
     label_str_indexer = StringIndexer(inputCol="result", outputCol="label", handleInvalid="keep")
     stages.append(label_str_indexer)
 
-    assembler_input = encoder.getOutputCols() + scaled_numerical_columns
+    assembler_input = encoder.getOutputCols() + [scaler.getOutputCol()]
     assembler = VectorAssembler(inputCols= assembler_input, outputCol="features", handleInvalid="skip")
     stages.append(assembler)
 
@@ -351,20 +346,29 @@ def first_ml_train(result_df):
     pipeline = get_ml_pipeline()
 
     pipeline_model = pipeline.fit(imputed_df)
-    ml_data_df = pipeline_model.transform(result_df).select('features','label')
+    ml_df = pipeline_model.transform(imputed_df)
+    features_df = ml_df.select('features','label')
 
-    train,test = ml_data_df.randomSplit([0.7, 0.3], seed = 2020)
+    train,test = features_df.randomSplit([0.7, 0.3], seed = 2020)
     train.persist()
     test.persist()
     print("Training Dataset Count: " + str(train.count()))
     print("Test Dataset Count: " + str(test.count()))
 
     lr = LogisticRegression(featuresCol='features', labelCol='label', maxIter=10)
-    lrModel = lr.fit(train)
+    dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=5)
+    rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
 
-    predictions = lrModel.transform(test)
-    # evaluator = MulticlassClassificationEvaluator()
+    for algo in [lr,dt,rf]:
+        print(f"{str(algo)}")
+        model = algo.fit(train)
+        predictions = model.transform(test)
+        predictions.cache()
+        evaluator = MulticlassClassificationEvaluator()
 
+        for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
+            print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
+            
 if __name__ == "__main__":
 
     jenkins_data_directory = "./jenkins_data/data"
@@ -391,7 +395,6 @@ if __name__ == "__main__":
     result.collect()
     result.cache()  
     print("Result Count: ",result.count())
-
     print("Result count without na: ", result.dropna().count())
 
     first_ml_train(result)
