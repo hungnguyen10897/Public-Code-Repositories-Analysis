@@ -9,7 +9,7 @@ import argparse
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
-SONAR_DTYPE = {
+SONAR_MEASURE_DTYPE = OrderedDict({
     'project': 'object',
     'version': 'object',
     'date' : 'object',
@@ -118,7 +118,22 @@ SONAR_DTYPE = {
     'comment_lines_data': 'object',
     'projects': 'object',
     'ncloc_language_distribution': 'object',
-    'new_lines': 'object'}
+    'new_lines': 'object'})
+
+SONAR_ISSUES_DTYPE = OrderedDict({
+    "issue_key" : "object", 
+    "type" : "object", 
+    "rule" : "object", 
+    "severity" : "object", 
+    "status" : "object", 
+    "resolution" : "object", 
+    "effort" : "Int64", 
+    "debt" : "Int64", 
+    "tags" : "object", 
+    "creation_date" : "object", 
+    "update_date" : "object", 
+    "close_date" :  "object"
+})
 
 def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts = None):
 
@@ -145,6 +160,10 @@ def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts =
         params['component'] = project_key
         params['metrics'] = ','.join(metric_list)
 
+    elif type == 'issues':
+        endpoint = SERVER + "api/issues/search"
+        params['componentKeys'] = project_key
+
     else:
         print("ERROR: Illegal info type.")
         return None
@@ -153,7 +172,7 @@ def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts =
 
     if r.status_code != 200:
         print(f"ERROR: HTTP Response code {r.status_code} for request {r.request.path_url}")
-        return None
+        return []
 
     r_dict = r.json()
 
@@ -168,6 +187,9 @@ def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts =
         total_num_elements = r_dict['paging']['total']
     elif type == 'measures':
         element_list = r_dict['measures']
+        total_num_elements = r_dict['paging']['total']
+    elif type == 'issues':
+        element_list = r_dict['issues']
         total_num_elements = r_dict['paging']['total']
 
     if iter*page_size < total_num_elements:
@@ -273,14 +295,14 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
         values.reverse()
 
         # Resolving None Integer values
-        if SONAR_DTYPE[metric] == "Int64":
+        if SONAR_MEASURE_DTYPE[metric] == "Int64":
             data[metric] = pd.array(values, dtype=pd.Int64Dtype())
         else:
             data[metric] = values
     
     return columns, data
 
-def process_project(project, output_path, metrics_path = None ):
+def process_project_measures(project, output_path, metrics_path = None ):
 
     project_key = project['key']
 
@@ -293,7 +315,7 @@ def process_project(project, output_path, metrics_path = None ):
 
     if archive_file_path.exists():
         try:
-            old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_DTYPE, parse_dates=['date'])
+            old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_MEASURE_DTYPE, parse_dates=['date'])
             # TO_DO: Change nan to None ? Is it neccessary?
             max_ts_str = old_df['date'].max().strftime(format = '%Y-%m-%d')
         except ValueError as e:
@@ -344,6 +366,76 @@ def process_project(project, output_path, metrics_path = None ):
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
     df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
 
+def get_duration_from_str(input_str):
+
+    if input_str is not None:
+        idx_min = input_str.find('min')
+        idx_h = input_str.find('h')
+        idx_d = input_str.find('d')
+
+        if idx_d != -1:
+            days = int(input_str[:idx_d])
+            if len(input_str) == idx_d + 1:
+                return 24*60*days
+            return 24*60*days + get_duration_from_str(input_str[idx_d + 1:])
+
+        if idx_h != -1:
+            hours = int(input_str[:idx_h])
+            if len(input_str) == idx_h + 1:
+                return 60*hours           
+            return 60*hours + get_duration_from_str(input_str[idx_h + 1:])
+
+        if idx_min != -1:
+            mins = int(input_str[:idx_min])
+            return mins
+
+        print(f"ERROR: duration string '{input_str}' does not contain 'min', 'h' or 'd'.")
+        sys.exit(1)
+
+def process_project_issues(project, output_path):
+
+    project_key = project['key']
+
+    output_path = Path(output_path).joinpath("issues")
+    output_path.mkdir(parents=True, exist_ok=True)
+    file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
+
+    project_issues = query_server('issues', 1, project_key = project_key)
+    print(f"\t\t{project_key} - {len(project_issues)} issues")
+
+    issues = []
+    for project_issue in project_issues:
+
+        issue_key = None if 'key' not in project_issue else project_issue['key']
+        rule = None if 'rule' not in project_issue else project_issue['rule']
+        severity = None if 'severity' not in project_issue else project_issue['severity']
+        status = None if 'status' not in project_issue else project_issue['status']
+        resolution = None if 'resolution' not in project_issue else project_issue['resolution']
+
+        effort = None if 'effort' not in project_issue else get_duration_from_str(project_issue['effort'])
+        debt = None if 'debt' not in project_issue else get_duration_from_str(project_issue['debt'])
+
+        if 'tags' not in project_issue or len(project_issue['tags']) == 0:
+            tags = None
+        else:
+            tags = ','.join(project_issue['tags'])
+
+        creation_date = None if 'creationDate' not in project_issue else process_datetime(project_issue['creationDate'])
+        update_date = None if 'updateDate' not in project_issue else process_datetime(project_issue['updateDate'])
+        close_date = None if 'closeDate' not in project_issue else process_datetime(project_issue['closeDate'])
+        type = None if 'type' not in project_issue else project_issue['type']
+    
+        issue = (issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
+        issues.append(issue)
+
+    df = pd.DataFrame(data = issues, columns= SONAR_ISSUES_DTYPE.keys())
+    df = df.astype({
+        "effort" : "Int64",
+        "debt" : "Int64"
+    })
+
+    df.to_csv(file_path, index=False, header=True)
+
 def write_metrics_file(metric_list):
     metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
 
@@ -368,7 +460,18 @@ def fetch_sonarqube_mesures(output_path):
     i = 0
     for project in project_list:
         print(f"\t{i}: ")
-        process_project(project, output_path)
+        process_project_measures(project, output_path)
+        i += 1
+
+def fetch_sonar_issues(output_path):
+    project_list = query_server(type='projects')
+    project_list.sort(key = lambda x: x['key'])
+
+    print(f"Total: {len(project_list)} projects.")
+    i = 0
+    for project in project_list:
+        print(f"\t{i}: ")
+        process_project_issues(project, output_path)
         i += 1
 
 if __name__ == "__main__":
@@ -383,5 +486,6 @@ if __name__ == "__main__":
     # Write all metrics to a file
     # write_metrics_file(query_server(type='metrics'))
 
-    fetch_sonarqube_mesures(output_path)
+    # fetch_sonarqube_mesures(output_path)
+    fetch_sonar_issues(output_path)
 

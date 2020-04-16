@@ -167,12 +167,12 @@ def main(jenkins_data_dir, sonar_data_dir):
 
     jenkins_tests_dir = jenkins_data_dir.joinpath("tests")
 
-    sonar_csv_dir = sonar_data_dir.joinpath("csv")
-    if not sonar_csv_dir.exists():
-        print(f"ERROR: Sonar data directory does not exsist: {sonar_csv_dir.resolve()}")
+    sonar_measures_dir = sonar_data_dir.joinpath("measures")
+    if not sonar_measures_dir.exists():
+        print(f"ERROR: Sonar data directory does not exsist: {sonar_measures_dir.resolve()}")
         sys.exit(1)
 
-    dirs = [jenkins_builds_dir, jenkins_tests_dir, sonar_csv_dir]
+    dirs = [jenkins_builds_dir, jenkins_tests_dir, sonar_measures_dir]
     dtype_dicts = [JENKINS_BUILD_DTYPE, JENKINS_TEST_DTYPE, SONAR_DTYPE]
 
     for dir,dtype in zip(dirs, dtype_dicts):

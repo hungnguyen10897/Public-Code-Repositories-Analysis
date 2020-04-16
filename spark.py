@@ -284,7 +284,7 @@ def get_source_data(source ,data_directory, load):
         files_dir = data_path.joinpath('tests')
         DTYPE = JENKINS_TEST_DTYPE
     elif source == "sonarqube":
-        files_dir = data_path.joinpath('csv')
+        files_dir = data_path.joinpath('measures')
         DTYPE = SONAR_DTYPE
 
     field = []
