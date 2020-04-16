@@ -415,9 +415,9 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     sonar_df.persist()
     print("Sonar Count: ", sonar_df.count())
 
-    # write_mode = "overwrite" if run_mode == "first" else "append"
-    # jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # sonar_df.write.jdbc(CONNECTION_STR, table="sonarqube", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    write_mode = "overwrite" if run_mode == "first" else "append"
+    jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    sonar_df.write.jdbc(CONNECTION_STR, table="sonarqube", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
     result.collect()

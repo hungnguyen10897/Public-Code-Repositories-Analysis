@@ -280,23 +280,20 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
     
     return columns, data
 
-def process_project(project, format, output_path, metrics_path = None ):
+def process_project(project, output_path, metrics_path = None ):
 
     project_key = project['key']
 
-    output_path_format = Path(output_path).joinpath(format)
-    output_path_format.mkdir(parents=True, exist_ok=True)
-    staging_file_path = output_path_format.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.{format}")
-    archive_file_path = output_path_format.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.{format}")
+    output_path = Path(output_path).joinpath("measures")
+    output_path.mkdir(parents=True, exist_ok=True)
+    staging_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
+    archive_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
 
     max_ts_str = None
 
     if archive_file_path.exists():
         try:
-            if format == 'csv':
-                old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_DTYPE, parse_dates=['date'])
-            elif format == 'parquet':
-                old_df = pd.read_parquet(path = archive_file_path.resolve())
+            old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_DTYPE, parse_dates=['date'])
             # TO_DO: Change nan to None ? Is it neccessary?
             max_ts_str = old_df['date'].max().strftime(format = '%Y-%m-%d')
         except ValueError as e:
@@ -345,11 +342,7 @@ def process_project(project, format, output_path, metrics_path = None ):
 
     #Create DF
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
-
-    if format == "csv":
-        df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
-    elif format == "parquet":
-        df.to_parquet(fname= staging_file_path, index=False)
+    df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
 
 def write_metrics_file(metric_list):
     metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
@@ -367,7 +360,7 @@ def write_metrics_file(metric_list):
                 'No Description' if 'description' not in metric else metric['description']
                 ))
 
-def fetch_sonarqube(format, output_path):
+def fetch_sonarqube_mesures(output_path):
     project_list = query_server(type='projects')
     project_list.sort(key = lambda x: x['key'])
 
@@ -375,26 +368,20 @@ def fetch_sonarqube(format, output_path):
     i = 0
     for project in project_list:
         print(f"\t{i}: ")
-        process_project(project, format, output_path)
+        process_project(project, output_path)
         i += 1
 
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
-
-    ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', 
-        help="Output file format. Can either be csv or parquet")
-
     ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory.")
-    # ap.add_argument("-l","--load", choices = ['first', 'incremental'], default='incremental' , help="Path to output file directory.")
 
     args = vars(ap.parse_args())
-    format = args['format']
+
     output_path = args['output_path']
-    # load = args['load']
 
     # Write all metrics to a file
     # write_metrics_file(query_server(type='metrics'))
 
-    fetch_sonarqube(format, output_path)
+    fetch_sonarqube_mesures(output_path)
 
