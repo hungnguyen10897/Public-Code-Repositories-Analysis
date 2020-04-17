@@ -386,7 +386,7 @@ def process_project_measures(project, output_path, new_analyses, metrics_path = 
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
     df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
 
-def process_project_issues(project, output_path, new_analyses):
+def process_project_issues(project, output_path, new_analyses, latest_analysis_ts_on_file):
 
     project_key = project['key']
 
@@ -397,8 +397,20 @@ def process_project_issues(project, output_path, new_analyses):
     project_issues = query_server('issues', 1, project_key = project_key)
     print(f"\t\t{project_key} - {len(project_issues)} issues")
 
+
     issues = []
     for project_issue in project_issues:
+
+        creation_date = None if 'creationDate' not in project_issue else process_datetime(project_issue['creationDate'])
+        update_date = None if 'updateDate' not in project_issue else process_datetime(project_issue['updateDate'])
+
+        # belong to the analyses on file
+        if update_date is not None and latest_analysis_ts_on_file is not None and update_date <= latest_analysis_ts_on_file:
+            continue
+
+        analysis_key = None
+
+        close_date = None if 'closeDate' not in project_issue else process_datetime(project_issue['closeDate'])
 
         issue_key = None if 'key' not in project_issue else project_issue['key']
         rule = None if 'rule' not in project_issue else project_issue['rule']
@@ -414,12 +426,9 @@ def process_project_issues(project, output_path, new_analyses):
         else:
             tags = ','.join(project_issue['tags'])
 
-        creation_date = None if 'creationDate' not in project_issue else process_datetime(project_issue['creationDate'])
-        update_date = None if 'updateDate' not in project_issue else process_datetime(project_issue['updateDate'])
-        close_date = None if 'closeDate' not in project_issue else process_datetime(project_issue['closeDate'])
         type = None if 'type' not in project_issue else project_issue['type']
      
-        issue = (project_key, issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
+        issue = (project_key, analysis_key, issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
         issues.append(issue)
 
     if issues != []:
@@ -474,9 +483,9 @@ def process_project_analyses(project, output_path):
     if lines != []:
         df = pd.DataFrame(data = lines, columns= SONAR_ANALYSES_DTYPE.keys())
         df.to_csv(staging_file_path, index= False, header=True)
-        return df
+        return df, last_analysis_ts
     
-    return None
+    return None, last_analysis_ts
 
 def fetch_sonar_data(output_path):
 
@@ -487,11 +496,11 @@ def fetch_sonar_data(output_path):
     i = 0
     for project in project_list:
         print(f"\t{i}: ")
-        new_analyses = process_project_analyses(project, output_path)
+        new_analyses, latest_analysis_ts_on_file = process_project_analyses(project, output_path)
         if new_analyses is None:
             continue
         process_project_measures(project, output_path, new_analyses)
-        # process_project_issues(project, output_path, new_analyses)
+        process_project_issues(project, output_path, new_analyses, latest_analysis_ts_on_file)
         i += 1
 
 if __name__ == "__main__":
