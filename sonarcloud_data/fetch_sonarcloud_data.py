@@ -121,7 +121,8 @@ SONAR_MEASURES_DTYPE = OrderedDict({
 
 SONAR_ISSUES_DTYPE = OrderedDict({
     "project" : "object",
-    "analysis_key" : "object",
+    "current_analysis_key" : "object",
+    "creation_analysis_key" : "object",
     "issue_key" : "object", 
     "type" : "object", 
     "rule" : "object", 
@@ -354,15 +355,15 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
     
     return columns, data
 
-def get_analysis_key(update_date, key_date_list):
+def get_analysis_key(date, key_date_list):
 
-    update_date = np.datetime64(update_date)
+    date = np.datetime64(date)
 
     for i in range(len(key_date_list)):
 
         analysis_date = key_date_list[i][1]
         
-        if update_date > analysis_date:
+        if date > analysis_date:
             return key_date_list[i-1][0]
             
     return key_date_list[-1][0]
@@ -399,6 +400,21 @@ def process_project_measures(project, output_path, new_analyses, metrics_path = 
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
     df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
 
+def get_creation_analysis_key(issue_key, archive_file_path, key_date_list):
+    
+    if archive_file_path.exists():
+
+        df = pd.read_csv(archive_file_path.absolute(), dtype=SONAR_ISSUES_DTYPE, parse_dates=["creation_date", "update_date" ,"close_date"])
+        issue_key_df = df[df['issue_key'] == issue_key]
+        if not issue_key_df.empty:
+            lst = issue_key_df['creation_analysis_key'].unique().tolist()
+            if len(lst) > 1:
+                print(f"ERROR: More than 1 creation_analysis_key(s) at [{issue_key}] - [{str(archive_file_path.absolute())}]")
+                sys.exit(1)
+            return lst.values[0]
+
+    return get_analysis_key(issue_key, key_date_list)
+    
 def process_project_issues(project, output_path, new_analyses, latest_analysis_ts_on_file):
 
     project_key = project['key']
@@ -406,6 +422,7 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
     output_path = Path(output_path).joinpath("issues")
     output_path.mkdir(parents=True, exist_ok=True)
     file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
+    archive_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
 
     project_issues = query_server('issues', 1, project_key = project_key)
 
@@ -417,14 +434,14 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
     issues = []
     for project_issue in project_issues:
 
-        creation_date = None if 'creationDate' not in project_issue else process_datetime(project_issue['creationDate'])
-        update_date = None if 'updateDate' not in project_issue else process_datetime(project_issue['updateDate'])
-        
+        update_date = None if 'updateDate' not in project_issue else process_datetime(project_issue['updateDate'])        
         # belong to the analyses on file
         if update_date is not None and latest_analysis_ts_on_file is not None and update_date <= latest_analysis_ts_on_file:
             continue
+        current_analysis_key = None if update_date is None else get_analysis_key(update_date, key_date_list)
 
-        analysis_key = None if update_date is None else get_analysis_key(update_date, key_date_list)
+        creation_date = None if 'creationDate' not in project_issue else process_datetime(project_issue['creationDate'])
+        creation_analysis_key = None if creation_date is None else get_creation_analysis_key(creation_date, archive_file_path, key_date_list)
 
         close_date = None if 'closeDate' not in project_issue else process_datetime(project_issue['closeDate'])
 
@@ -444,7 +461,7 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
 
         type = None if 'type' not in project_issue else project_issue['type']
      
-        issue = (project_key, analysis_key, issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
+        issue = (project_key, current_analysis_key, creation_analysis_key, issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
         issues.append(issue)
 
     print(f"\t\t{project_key} - {len(issues)} new issues")
@@ -469,7 +486,7 @@ def process_project_analyses(project, output_path):
     last_analysis_ts = None
     if archive_file_path.exists():
         try:
-            old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_ANALYSES_DTYPE, parse_dates=['date'])
+            old_df = pd.read_csv(archive_file_path.absolute(), dtype=SONAR_ANALYSES_DTYPE, parse_dates=['date'])
             last_analysis_ts = old_df['date'].max()
 
         except ValueError as e:
@@ -513,12 +530,12 @@ def fetch_sonar_data(output_path):
     i = 0
     for project in project_list:
         print(f"\t{i}: ")
+        i += 1
         new_analyses, latest_analysis_ts_on_file = process_project_analyses(project, output_path)
         if new_analyses is None:
             continue
         process_project_measures(project, output_path, new_analyses)
         process_project_issues(project, output_path, new_analyses, latest_analysis_ts_on_file)
-        i += 1
 
 if __name__ == "__main__":
 
