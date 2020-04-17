@@ -10,11 +10,9 @@ import numpy as np
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
-SONAR_MEASURE_DTYPE = OrderedDict({
+SONAR_MEASURES_DTYPE = OrderedDict({
     'project': 'object',
-    'version': 'object',
-    'date' : 'object',
-    'revision': 'object',
+    'analysis_key' : 'object',
     'complexity': 'Int64',
     'class_complexity': 'object',
     'function_complexity': 'object',
@@ -349,7 +347,7 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
         values = values[:len(data['analysis_key'])]
 
         # Resolving None Integer values
-        if SONAR_MEASURE_DTYPE[metric] == "Int64":
+        if SONAR_MEASURES_DTYPE[metric] == "Int64":
             data[metric] = pd.array(values, dtype=pd.Int64Dtype())
         else:
             data[metric] = values

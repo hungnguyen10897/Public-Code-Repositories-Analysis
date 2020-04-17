@@ -26,11 +26,9 @@ JENKINS_TEST_DTYPE = {
     "duration" : "float64",
     "status" : "object"}
 
-SONAR_DTYPE = {
+SONAR_MEASURES_DTYPE = {
     'project': 'object',
-    'version': 'object',
-    'date' : 'object',
-    'revision': 'object',
+    'analysis_key': 'object',
     'complexity': 'Int64',
     'class_complexity': 'object',
     'function_complexity': 'object',
@@ -137,6 +135,31 @@ SONAR_DTYPE = {
     'ncloc_language_distribution': 'object',
     'new_lines': 'object'}
 
+SONAR_ISSUES_DTYPE = {
+    "project" : "object",
+    "analysis_key" : "object",
+    "issue_key" : "object", 
+    "type" : "object", 
+    "rule" : "object", 
+    "severity" : "object", 
+    "status" : "object", 
+    "resolution" : "object", 
+    "effort" : "Int64", 
+    "debt" : "Int64", 
+    "tags" : "object", 
+    "creation_date" : "object", 
+    "update_date" : "object", 
+    "close_date" :  "object"
+}
+
+SONAR_ANALYSES_DTYPE = {
+    "project" : "object", 
+    "analysis_key" : "object", 
+    "date" : "object", 
+    "project_version" : "object", 
+    "revision" : "object"
+}
+
 def merge(file_directory, DTYPE):
 
     if not file_directory.exists():
@@ -167,13 +190,12 @@ def main(jenkins_data_dir, sonar_data_dir):
 
     jenkins_tests_dir = jenkins_data_dir.joinpath("tests")
 
+    sonar_analyses_dir = sonar_data_dir.joinpath("analyses")
     sonar_measures_dir = sonar_data_dir.joinpath("measures")
-    if not sonar_measures_dir.exists():
-        print(f"ERROR: Sonar data directory does not exsist: {sonar_measures_dir.resolve()}")
-        sys.exit(1)
+    sonar_issues_dir = sonar_data_dir.joinpath("issues")
 
-    dirs = [jenkins_builds_dir, jenkins_tests_dir, sonar_measures_dir]
-    dtype_dicts = [JENKINS_BUILD_DTYPE, JENKINS_TEST_DTYPE, SONAR_DTYPE]
+    dirs = [jenkins_builds_dir, jenkins_tests_dir, sonar_analyses_dir, sonar_measures_dir, sonar_issues_dir]
+    dtype_dicts = [JENKINS_BUILD_DTYPE, JENKINS_TEST_DTYPE, SONAR_ANALYSES_DTYPE, SONAR_MEASURES_DTYPE, SONAR_ISSUES_DTYPE]
 
     for dir,dtype in zip(dirs, dtype_dicts):
         print(f"Merging files in directory {dir.resolve()}")
@@ -192,5 +214,3 @@ if __name__ == "__main__":
     sonar_data_dir = Path(args['sonar'])
 
     main(jenkins_data_dir, sonar_data_dir)
-
-
