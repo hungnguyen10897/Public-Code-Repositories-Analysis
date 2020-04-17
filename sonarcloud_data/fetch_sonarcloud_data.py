@@ -344,6 +344,7 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
 
         values = list((map(lambda x: None if 'value' not in x else safe_cast(x['value'],type, contain_comma), history)))
         values.reverse()
+        values = values[:len(data['analysis_key'])]
 
         # Resolving None Integer values
         if SONAR_MEASURE_DTYPE[metric] == "Int64":
@@ -353,62 +354,31 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
     
     return columns, data
 
-def process_project_measures(project, output_path, metrics_path = None ):
+def process_project_measures(project, output_path, new_analyses, metrics_path = None ):
 
     project_key = project['key']
 
     output_path = Path(output_path).joinpath("measures")
     output_path.mkdir(parents=True, exist_ok=True)
     staging_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
-    archive_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
 
-    max_ts_str = None
+    min_ts_str = new_analyses['date'].min().strftime(format = '%Y-%m-%d')
 
-    if archive_file_path.exists():
-        try:
-            old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_MEASURE_DTYPE, parse_dates=['date'])
-            max_ts_str = old_df['date'].max().strftime(format = '%Y-%m-%d')
-        except ValueError as e:
-            print(f"\t\tERROR: {e} when parsing {archive_file_path} into DataFrame.")
-            max_ts_str = None
-
-        except FileNotFoundError as e:
-            # print(f"\t\tWARNING: No .{format} file found for project {project_key} in output path for")
-            max_ts_str = None
-
-    project_analyses = query_server('analyses', 1, project_key = project_key, from_ts = max_ts_str)
-    print(f"\t\t{project_key} - {len(project_analyses)} analyses")
-
-    if len(project_analyses) == 0:
-        return
-
-    revision_list = []
-    date_list = []
-    version_list = []
-    for analysis in project_analyses:
-        revision = None if 'revision' not in analysis else analysis['revision']
-        revision_list.append(revision)
-        date = None if 'date' not in analysis else process_datetime(analysis['date'])
-        date_list.append(date)
-        version = None if 'projectVersion' not in analysis else analysis['projectVersion']
-        version_list.append(version)
-    
     metrics_order_type = load_metrics(metrics_path)
     metrics = list(metrics_order_type.keys())
 
     measures = []
     for i in range(0,len(metrics), 15):
         #Get measures
-        measures = measures + query_server('measures',1,project_key, metrics[i:i+15], from_ts= max_ts_str)
+        measures = measures + query_server('measures',1,project_key, metrics[i:i+15], from_ts= min_ts_str)
     
     measures.sort(key = lambda x: metrics_order_type[x['metric']][0])
 
     data = OrderedDict()
-    data['project'] = [project_key] * len(project_analyses)
-    data['version'] = version_list
-    data['date'] = date_list
-    data['revision'] = revision_list
-    columns = ['project', 'version', 'date', 'revision']
+    data['project'] = [project_key] * len(new_analyses)
+    data['analysis_key'] = new_analyses['analysis_key'].values.tolist()
+
+    columns = ['project', 'analysis_key']
 
     columns_with_metrics, data_with_measures = extract_measures_value(measures, metrics_order_type, columns, data)
 
@@ -416,7 +386,7 @@ def process_project_measures(project, output_path, metrics_path = None ):
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
     df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
 
-def process_project_issues(project, output_path):
+def process_project_issues(project, output_path, new_analyses):
 
     project_key = project['key']
 
@@ -426,9 +396,6 @@ def process_project_issues(project, output_path):
 
     project_issues = query_server('issues', 1, project_key = project_key)
     print(f"\t\t{project_key} - {len(project_issues)} issues")
-
-    analyses = query_server('analyses',1, project_key = project_key)
-    analyses_date = list(map(lambda x: process_datetime(x['date']), analyses))
 
     issues = []
     for project_issue in project_issues:
@@ -507,28 +474,9 @@ def process_project_analyses(project, output_path):
     if lines != []:
         df = pd.DataFrame(data = lines, columns= SONAR_ANALYSES_DTYPE.keys())
         df.to_csv(staging_file_path, index= False, header=True)
-
-def fetch_sonar_mesures(output_path):
-    project_list = query_server(type='projects')
-    project_list.sort(key = lambda x: x['key'])
-
-    print(f"Total: {len(project_list)} projects.")
-    i = 0
-    for project in project_list:
-        print(f"\t{i}: ")
-        process_project_measures(project, output_path)
-        i += 1
-
-def fetch_sonar_issues(output_path):
-    project_list = query_server(type='projects')
-    project_list.sort(key = lambda x: x['key'])
-
-    print(f"Total: {len(project_list)} projects.")
-    i = 0
-    for project in project_list:
-        print(f"\t{i}: ")
-        process_project_issues(project, output_path)
-        i += 1
+        return df
+    
+    return None
 
 def fetch_sonar_data(output_path):
 
@@ -539,7 +487,11 @@ def fetch_sonar_data(output_path):
     i = 0
     for project in project_list:
         print(f"\t{i}: ")
-        process_project_analyses(project, output_path)
+        new_analyses = process_project_analyses(project, output_path)
+        if new_analyses is None:
+            continue
+        process_project_measures(project, output_path, new_analyses)
+        # process_project_issues(project, output_path, new_analyses)
         i += 1
 
 if __name__ == "__main__":
