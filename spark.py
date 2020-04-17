@@ -5,12 +5,13 @@ from pyspark import SparkContext, SparkConf
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.utils import AnalysisException
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, udf
 from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, VectorAssembler, MinMaxScaler, Imputer
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
+import numpy as np
 from pathlib import Path
 from collections import OrderedDict
 import time
@@ -149,7 +150,8 @@ SONAR_MEASURES_DTYPE = OrderedDict({
 
 SONAR_ISSUES_DTYPE = OrderedDict({
     "project" : "object",
-    "analysis_key" : "object",
+    "current_analysis_key" : "object",
+    "creation_analysis_key" : "object",
     "issue_key" : "object", 
     "type" : "object", 
     "rule" : "object", 
@@ -285,7 +287,7 @@ SONAR_MEASURES_NUMERICAL_COLUMNS = [
     "statements"
 ]
 
-NUMERICAL_COLUMNS = JENKINS_BUILDS_NUMERICAL_COLUMNS + SONAR_MEASURES_NUMERICAL_COLUMNS
+ML1_NUMERICAL_COLUMNS = JENKINS_BUILDS_NUMERICAL_COLUMNS + SONAR_MEASURES_NUMERICAL_COLUMNS
 
 JENKINS_BUILDS_CATEGORICAL_COLUMNS = []
 
@@ -293,7 +295,7 @@ SONAR_MEASURES_CATEGORICAL_COLUMNS = [
     "alert_status"
 ]
 
-CATEGORICAL_COLUMNS = JENKINS_BUILDS_CATEGORICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS
+ML1_CATEGORICAL_COLUMNS = JENKINS_BUILDS_CATEGORICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS
 
 CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
 CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
@@ -346,12 +348,12 @@ def get_source_data(source ,data_directory, load):
 def get_ml1_pipeline():
     stages = []
 
-    imputer = Imputer(inputCols=NUMERICAL_COLUMNS , outputCols=NUMERICAL_COLUMNS )
+    imputer = Imputer(inputCols=ML1_NUMERICAL_COLUMNS , outputCols=ML1_NUMERICAL_COLUMNS )
     stages.append(imputer)
 
     ohe_input_cols = []
     ohe_output_cols = []
-    for categorical_column in CATEGORICAL_COLUMNS:
+    for categorical_column in ML1_CATEGORICAL_COLUMNS:
         str_indexer = StringIndexer(inputCol=categorical_column, outputCol=categorical_column + "_index", handleInvalid='keep')
         ohe_input_cols.append(str_indexer.getOutputCol())
         ohe_output_cols.append(categorical_column + "_class_vec")
@@ -360,7 +362,7 @@ def get_ml1_pipeline():
     encoder = OneHotEncoderEstimator(inputCols=ohe_input_cols, outputCols=ohe_output_cols, handleInvalid="keep")
     stages.append(encoder)
 
-    numerical_vector_assembler = VectorAssembler(inputCols=NUMERICAL_COLUMNS , outputCol="numerial_cols_vec", handleInvalid="keep")
+    numerical_vector_assembler = VectorAssembler(inputCols=ML1_NUMERICAL_COLUMNS , outputCol="numerial_cols_vec", handleInvalid="keep")
     scaler = MinMaxScaler(inputCol="numerial_cols_vec", outputCol= "scaled_numerical_cols")
     stages.append(numerical_vector_assembler)
     stages.append(scaler)
@@ -375,10 +377,18 @@ def get_ml1_pipeline():
     pipeline = Pipeline(stages = stages)
     return pipeline
 
-def apply_ml1(df, spark_artefacts_dir, run_mode):
+def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
+
+    ml_sonar_df = sonar_measures_df.join(sonar_analyses_df, sonar_measures_df.analysis_key == sonar_analyses_df.analysis_key, 
+    how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
+
+    df = jenkins_builds_df.join(ml_sonar_df, jenkins_builds_df.revision_number == ml_sonar_df.revision, how = 'inner')
+    df.collect()
+    df.cache()  
+    print("ml1_df Count: ",df.count())
 
     # Change data type from Int to Float to fit into estimators
-    for column_name in NUMERICAL_COLUMNS:
+    for column_name in ML1_NUMERICAL_COLUMNS:
         if column_name in JENKINS_BUILD_DTYPE:
             if JENKINS_BUILD_DTYPE[column_name] == 'Int64':
                 df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
@@ -431,6 +441,24 @@ def apply_ml1(df, spark_artefacts_dir, run_mode):
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
                 print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
 
+def apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
+
+    key_date_list = sonar_analyses_df.select("analysis_key", "date").rdd.map(lambda e: (e[0],e[1])).collect()
+    
+    def get_analysis_key(date):
+
+        for i in range(len(key_date_list)):
+            analysis_date = key_date_list[i][1]
+            if date > analysis_date:
+                return key_date_list[i-1][0]
+        return key_date_list[-1][0]
+
+    get_analysis_key_function = udf(lambda z: get_analysis_key(z), StringType())
+    spark.udf.register("get_analysis_key_function", get_analysis_key_function)
+    
+    sonar_issues_df = sonar_issues_df.withColumn('creation_analysis',get_analysis_key_function("creation_date") )
+    print("***")
+
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
 
     if run_mode == "incremental":
@@ -456,26 +484,21 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     sonar_measures_df.persist()
     print("Sonar measures Count: ", sonar_measures_df.count())
 
-    ml1_sonar_df = sonar_measures_df.join(sonar_analyses_df, sonar_measures_df.analysis_key == sonar_analyses_df.analysis_key, 
-        how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
-
     sonar_issues_df = get_source_data("sonar issues", sonar_data_directory, run_mode)
     sonar_issues_df = sonar_issues_df.filter("project IS NOT NULL")
     sonar_issues_df.persist()
     print("Sonar issues Count: ", sonar_issues_df.count())
 
+    # WRITE TO POSTGRESQL
     # write_mode = "overwrite" if run_mode == "first" else "append"
     # jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
     # sonar_measures_df.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
     # sonar_analyses_df.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
     # sonar_issues_df.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
-    ml1_df = jenkins_builds_df.join(ml1_sonar_df, jenkins_builds_df.revision_number == ml1_sonar_df.revision, how = 'inner')
-    ml1_df.collect()
-    ml1_df.cache()  
-    print("ml1_df Count: ",ml1_df.count())
-
-    apply_ml1(ml1_df, spark_artefacts_dir, run_mode)
+    # APPLY MACHINE LEARNING
+    # apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode)
+    apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
 
@@ -488,7 +511,6 @@ if __name__ == "__main__":
     print(f"Start Spark processing - mode: {mode.upper()}")
 
     run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
-    # run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "incremental")
 
     spark.stop()
     print(f"Time elapsed: {time.time() - then}")

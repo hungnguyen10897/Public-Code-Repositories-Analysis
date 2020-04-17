@@ -145,7 +145,8 @@ SONAR_MEASURES_DTYPE = {
 
 SONAR_ISSUES_DTYPE = {
     "project" : "object",
-    "analysis_key" : "object",
+    "current_analysis_key" : "object",
+    "creation_analysis_key" : "object",
     "issue_key" : "object", 
     "type" : "object", 
     "rule" : "object", 

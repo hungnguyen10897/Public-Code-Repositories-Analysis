@@ -124,11 +124,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		ncloc_language_distribution VARCHAR,
 		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);
-	ALTER TABLE sonarqube OWNER TO pra;
+	ALTER TABLE sonar_measures OWNER TO pra;
 
 	CREATE TABLE sonar_issues(
                 project VARCHAR NOT NULL, 
-                analysis_key VARCHAR,
+                current_analysis_key VARCHAR,
+		creation_analysis_key VARCHAR,
 		issues_key VARCHAR,
 		type VARCHAR(20),
 		rule VARCHAR,
@@ -143,6 +144,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		close_date TIMESTAMP WITHOUT TIME ZONE,
                 ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
-        ALTER TABLE sonar_analyses OWNER TO pra;	
+        ALTER TABLE sonar_issues OWNER TO pra;	
 
 EOSQL
