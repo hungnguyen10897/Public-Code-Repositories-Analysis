@@ -26,6 +26,14 @@ JENKINS_TEST_DTYPE = {
     "duration" : "float64",
     "status" : "object"}
 
+SONAR_ANALYSES_DTYPE = {
+    "project" : "object", 
+    "analysis_key" : "object", 
+    "date" : "object", 
+    "project_version" : "object", 
+    "revision" : "object"
+}
+
 SONAR_MEASURES_DTYPE = {
     'project': 'object',
     'analysis_key': 'object',
@@ -150,14 +158,6 @@ SONAR_ISSUES_DTYPE = {
     "creation_date" : "object", 
     "update_date" : "object", 
     "close_date" :  "object"
-}
-
-SONAR_ANALYSES_DTYPE = {
-    "project" : "object", 
-    "analysis_key" : "object", 
-    "date" : "object", 
-    "project_version" : "object", 
-    "revision" : "object"
 }
 
 def merge(file_directory, DTYPE):

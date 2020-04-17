@@ -46,15 +46,22 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		duration INT,
 		status VARCHAR(50),
 		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
-
 	);
 	ALTER TABLE jenkins_tests OWNER TO pra;
 
-	CREATE TABLE sonarqube(
-		project VARCHAR NOT NULL,
-		version VARCHAR,
+	CREATE TABLE sonar_analyses(
+		project VARCHAR NOT NULL, 
+		analysis_key VARCHAR,
 		date TIMESTAMP WITHOUT TIME ZONE,
+		project_version VARCHAR,
 		revision VARCHAR,
+		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	);
+	ALTER TABLE sonar_analyses OWNER TO pra;
+
+	CREATE TABLE sonar_measures(
+		project VARCHAR NOT NULL,
+		analysis_key VARCHAR,
 		complexity INT,
 		file_complexity FLOAT,
 		cognitive_complexity INT,
@@ -118,5 +125,24 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);
 	ALTER TABLE sonarqube OWNER TO pra;
+
+	CREATE TABLE sonar_issues(
+                project VARCHAR NOT NULL, 
+                analysis_key VARCHAR,
+		issues_key VARCHAR,
+		type VARCHAR(20),
+		rule VARCHAR,
+		severity VARCHAR(20),
+		status VARCHAR(20),
+		resolution VARCHAR(20),
+		effort INT,
+		debt INT,
+		tags VARCHAR,
+		creation_date TIMESTAMP WITHOUT TIME ZONE,
+		update_date TIMESTAMP WITHOUT TIME ZONE,
+		close_date TIMESTAMP WITHOUT TIME ZONE,
+                ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        ALTER TABLE sonar_analyses OWNER TO pra;	
 
 EOSQL

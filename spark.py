@@ -39,11 +39,9 @@ JENKINS_TEST_DTYPE = OrderedDict({
     "duration" : "float64",
     "status" : "object"})
 
-SONAR_DTYPE = OrderedDict({
+SONAR_MEASURES_DTYPE = OrderedDict({
     'project': 'object',
-    'version': 'object',
-    'date' : 'object',
-    'revision': 'object',
+    'analysis_key': 'object',
     'complexity': 'Int64',
     'class_complexity': 'object',
     'function_complexity': 'object',
@@ -149,8 +147,31 @@ SONAR_DTYPE = OrderedDict({
     'ncloc_language_distribution': 'object',
     'new_lines': 'object'})
 
+SONAR_ISSUES_DTYPE = OrderedDict({
+    "project" : "object",
+    "analysis_key" : "object",
+    "issue_key" : "object", 
+    "type" : "object", 
+    "rule" : "object", 
+    "severity" : "object", 
+    "status" : "object", 
+    "resolution" : "object", 
+    "effort" : "Int64", 
+    "debt" : "Int64", 
+    "tags" : "object", 
+    "creation_date" : "object", 
+    "update_date" : "object", 
+    "close_date" :  "object"})
+
+SONAR_ANALYSES_DTYPE = OrderedDict({
+    "project" : "object", 
+    "analysis_key" : "object", 
+    "date" : "object", 
+    "project_version" : "object", 
+    "revision" : "object"})
+
 # Drop these columns due to too many nulls
-TO_DROP_SONAR_COLUMNS = [
+TO_DROP_SONAR_MEASURES_COLUMNS = [
     "class_complexity",
     "function_complexity",
     "function_complexity_distribution",
@@ -197,13 +218,16 @@ TO_DROP_SONAR_COLUMNS = [
     "new_lines",
 ]
 
-NUMERICAL_COLUMNS = [
+JENKINS_BUILDS_NUMERICAL_COLUMNS = [
     "duration",
     "estimated_duration",
     "test_pass_count",
     "test_fail_count",
     "test_skip_count",
     "total_test_duration",
+]
+
+SONAR_MEASURES_NUMERICAL_COLUMNS = [
     "complexity",
     "file_complexity",
     "cognitive_complexity",
@@ -261,9 +285,15 @@ NUMERICAL_COLUMNS = [
     "statements"
 ]
 
-CATEGORICAL_COLUMNS = [
+NUMERICAL_COLUMNS = JENKINS_BUILDS_NUMERICAL_COLUMNS + SONAR_MEASURES_NUMERICAL_COLUMNS
+
+JENKINS_BUILDS_CATEGORICAL_COLUMNS = []
+
+SONAR_MEASURES_CATEGORICAL_COLUMNS = [
     "alert_status"
 ]
+
+CATEGORICAL_COLUMNS = JENKINS_BUILDS_CATEGORICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS
 
 CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
 CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
@@ -283,13 +313,19 @@ def get_source_data(source ,data_directory, load):
     elif source == "jenkins tests":
         files_dir = data_path.joinpath('tests')
         DTYPE = JENKINS_TEST_DTYPE
-    elif source == "sonarqube":
+    elif source == "sonar measures":
         files_dir = data_path.joinpath('measures')
-        DTYPE = SONAR_DTYPE
+        DTYPE = SONAR_MEASURES_DTYPE
+    elif source == "sonar analyses":
+        files_dir = data_path.joinpath('analyses')
+        DTYPE = SONAR_ANALYSES_DTYPE
+    elif source == "sonar issues":
+        files_dir = data_path.joinpath('issues')
+        DTYPE = SONAR_ISSUES_DTYPE            
 
     field = []
     for col,type in DTYPE.items():
-        if col in ['date', 'last_commit_date', 'commit_ts']:
+        if col in ['date', 'last_commit_date', 'commit_ts', 'creation_date', 'update_date', 'close_date']:
             field.append(StructField(col, TimestampType(), True))
         elif type == 'object':
             field.append(StructField(col, StringType(), True))
@@ -301,16 +337,16 @@ def get_source_data(source ,data_directory, load):
     schema = StructType(field)
     try:
         df = spark.read.csv(str(files_dir.absolute()) + file_extension, sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
-            ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
+            ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST').drop_duplicates()
     except AnalysisException:
-        print(f"No _staging csv for [{source}]")
-        df = spark.createDataFrame(spark.sparkContext.emptyRDD(), schema).drop_duplicates()
+        print(f"No .csv files for [{source}]")
+        df = spark.createDataFrame(spark.sparkContext.emptyRDD(), schema)
     return df
 
-def get_ml_pipeline():
+def get_ml1_pipeline():
     stages = []
 
-    imputer = Imputer(inputCols=NUMERICAL_COLUMNS, outputCols=NUMERICAL_COLUMNS)
+    imputer = Imputer(inputCols=NUMERICAL_COLUMNS , outputCols=NUMERICAL_COLUMNS )
     stages.append(imputer)
 
     ohe_input_cols = []
@@ -324,7 +360,7 @@ def get_ml_pipeline():
     encoder = OneHotEncoderEstimator(inputCols=ohe_input_cols, outputCols=ohe_output_cols, handleInvalid="keep")
     stages.append(encoder)
 
-    numerical_vector_assembler = VectorAssembler(inputCols=NUMERICAL_COLUMNS, outputCol="numerial_cols_vec", handleInvalid="keep")
+    numerical_vector_assembler = VectorAssembler(inputCols=NUMERICAL_COLUMNS , outputCol="numerial_cols_vec", handleInvalid="keep")
     scaler = MinMaxScaler(inputCol="numerial_cols_vec", outputCol= "scaled_numerical_cols")
     stages.append(numerical_vector_assembler)
     stages.append(scaler)
@@ -339,20 +375,20 @@ def get_ml_pipeline():
     pipeline = Pipeline(stages = stages)
     return pipeline
 
-def apply_ml(df, spark_artefacts_dir, run_mode):
+def apply_ml1(df, spark_artefacts_dir, run_mode):
 
     # Change data type from Int to Float to fit into estimators
     for column_name in NUMERICAL_COLUMNS:
         if column_name in JENKINS_BUILD_DTYPE:
             if JENKINS_BUILD_DTYPE[column_name] == 'Int64':
                 df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
-        elif column_name in SONAR_DTYPE:
-            if SONAR_DTYPE[column_name] == 'Int64':
+        elif column_name in SONAR_MEASURES_DTYPE:
+            if SONAR_MEASURES_DTYPE[column_name] == 'Int64':
                 df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
 
     pipeline_path = Path(spark_artefacts_dir).joinpath("pipeline")
     if run_mode == "first":
-        pipeline = get_ml_pipeline()
+        pipeline = get_ml1_pipeline()
         pipeline_model = pipeline.fit(df)
         pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
 
@@ -407,24 +443,39 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     jenkins_builds_df = get_source_data("jenkins builds",jenkins_data_directory, run_mode)
     jenkins_builds_df = jenkins_builds_df.filter("job IS NOT NULL")
     jenkins_builds_df.persist()
-    print("Jenkins Count: ", jenkins_builds_df.count())
+    print("Jenkins builds Count: ", jenkins_builds_df.count())
 
-    sonar_df = get_source_data("sonarqube", sonar_data_directory, run_mode)
-    sonar_df = sonar_df.filter("project IS NOT NULL")
-    sonar_df = sonar_df.drop(*TO_DROP_SONAR_COLUMNS)
-    sonar_df.persist()
-    print("Sonar Count: ", sonar_df.count())
+    sonar_analyses_df = get_source_data("sonar analyses", sonar_data_directory, run_mode)
+    sonar_analyses_df = sonar_analyses_df.filter("project IS NOT NULL")
+    sonar_analyses_df.persist()
+    print("Sonar analyses Count: ", sonar_analyses_df.count())
 
-    write_mode = "overwrite" if run_mode == "first" else "append"
-    jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    sonar_df.write.jdbc(CONNECTION_STR, table="sonarqube", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    sonar_measures_df = get_source_data("sonar measures", sonar_data_directory, run_mode)
+    sonar_measures_df = sonar_measures_df.filter("project IS NOT NULL")
+    sonar_measures_df = sonar_measures_df.drop(*TO_DROP_SONAR_MEASURES_COLUMNS)
+    sonar_measures_df.persist()
+    print("Sonar measures Count: ", sonar_measures_df.count())
 
-    result = jenkins_builds_df.join(sonar_df, jenkins_builds_df.revision_number == sonar_df.revision, how = 'inner')
-    result.collect()
-    result.cache()  
-    print("Result Count: ",result.count())
+    ml1_sonar_df = sonar_measures_df.join(sonar_analyses_df, sonar_measures_df.analysis_key == sonar_analyses_df.analysis_key, 
+        how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
 
-    apply_ml(result, spark_artefacts_dir, run_mode)
+    sonar_issues_df = get_source_data("sonar issues", sonar_data_directory, run_mode)
+    sonar_issues_df = sonar_issues_df.filter("project IS NOT NULL")
+    sonar_issues_df.persist()
+    print("Sonar issues Count: ", sonar_issues_df.count())
+
+    # write_mode = "overwrite" if run_mode == "first" else "append"
+    # jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # sonar_measures_df.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # sonar_analyses_df.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # sonar_issues_df.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+
+    ml1_df = jenkins_builds_df.join(ml1_sonar_df, jenkins_builds_df.revision_number == ml1_sonar_df.revision, how = 'inner')
+    ml1_df.collect()
+    ml1_df.cache()  
+    print("ml1_df Count: ",ml1_df.count())
+
+    apply_ml1(ml1_df, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
 
