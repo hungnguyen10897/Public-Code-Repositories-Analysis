@@ -6,6 +6,7 @@ import sys
 import pandas as pd
 from collections import OrderedDict
 import argparse
+import numpy as np
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
@@ -122,6 +123,7 @@ SONAR_MEASURE_DTYPE = OrderedDict({
 
 SONAR_ISSUES_DTYPE = OrderedDict({
     "project" : "object",
+    "analysis_key" : "object",
     "issue_key" : "object", 
     "type" : "object", 
     "rule" : "object", 
@@ -354,6 +356,19 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
     
     return columns, data
 
+def get_analysis_key(update_date, key_date_list):
+
+    update_date = np.datetime64(update_date)
+
+    for i in range(len(key_date_list)):
+
+        analysis_date = key_date_list[i][1]
+        
+        if update_date > analysis_date:
+            return key_date_list[i-1][0]
+            
+    return key_date_list[-1][0]
+
 def process_project_measures(project, output_path, new_analyses, metrics_path = None ):
 
     project_key = project['key']
@@ -392,23 +407,26 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
 
     output_path = Path(output_path).joinpath("issues")
     output_path.mkdir(parents=True, exist_ok=True)
-    file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
+    file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
 
     project_issues = query_server('issues', 1, project_key = project_key)
-    print(f"\t\t{project_key} - {len(project_issues)} issues")
 
+    new_analysis_keys = new_analyses['analysis_key'].values.tolist()
+    new_analysis_dates = new_analyses['date'].values
+    # dates are in decreasing order
+    key_date_list = list(zip(new_analysis_keys, new_analysis_dates))
 
     issues = []
     for project_issue in project_issues:
 
         creation_date = None if 'creationDate' not in project_issue else process_datetime(project_issue['creationDate'])
         update_date = None if 'updateDate' not in project_issue else process_datetime(project_issue['updateDate'])
-
+        
         # belong to the analyses on file
         if update_date is not None and latest_analysis_ts_on_file is not None and update_date <= latest_analysis_ts_on_file:
             continue
 
-        analysis_key = None
+        analysis_key = None if update_date is None else get_analysis_key(update_date, key_date_list)
 
         close_date = None if 'closeDate' not in project_issue else process_datetime(project_issue['closeDate'])
 
@@ -431,6 +449,7 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
         issue = (project_key, analysis_key, issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
         issues.append(issue)
 
+    print(f"\t\t{project_key} - {len(issues)} new issues")
     if issues != []:
         df = pd.DataFrame(data = issues, columns= SONAR_ISSUES_DTYPE.keys())
         df = df.astype({
