@@ -160,7 +160,6 @@ def write_metrics_file(metric_list):
                 'No Description' if 'description' not in metric else metric['description']
                 ))
 
-
 def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts = None):
 
     page_size = 200
@@ -368,7 +367,6 @@ def process_project_measures(project, output_path, metrics_path = None ):
     if archive_file_path.exists():
         try:
             old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_MEASURE_DTYPE, parse_dates=['date'])
-            # TO_DO: Change nan to None ? Is it neccessary?
             max_ts_str = old_df['date'].max().strftime(format = '%Y-%m-%d')
         except ValueError as e:
             print(f"\t\tERROR: {e} when parsing {archive_file_path} into DataFrame.")
@@ -472,22 +470,43 @@ def process_project_analyses(project, output_path):
 
     output_path = Path(output_path).joinpath("analyses")
     output_path.mkdir(parents=True, exist_ok=True)
-    file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
+    staging_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
+    archive_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
+
+    last_analysis_ts = None
+    if archive_file_path.exists():
+        try:
+            old_df = pd.read_csv(archive_file_path.resolve(), dtype=SONAR_ANALYSES_DTYPE, parse_dates=['date'])
+            last_analysis_ts = old_df['date'].max()
+
+        except ValueError as e:
+            print(f"\t\tERROR: {e} when parsing {archive_file_path} into DataFrame.")
+
+        except FileNotFoundError as e:
+            # print(f"\t\tWARNING: No .{format} file found for project {project_key} in output path for")
+            pass
 
     lines = []
-    analyses = query_server('analyses',1, project_key = project_key)
+    from_ts = None if last_analysis_ts is None else last_analysis_ts.strftime(format = '%Y-%m-%d')
+    analyses = query_server('analyses',1, project_key = project_key, from_ts = from_ts)
     for analysis in analyses:
         analysis_key = None if 'key' not in analysis else analysis['key']
+        
         date = None if 'date' not in analysis else process_datetime(analysis['date'])
+        if date is not None and last_analysis_ts is not None:
+            if date <= last_analysis_ts:
+                continue
+
         project_version = None if 'projectVersion' not in analysis else analysis['projectVersion']
         revision = None if 'revision' not in analysis else analysis['revision']
 
         line = (project_key, analysis_key, date, project_version, revision)
         lines.append(line)
     
+    print(f"\t\t {project_key} - {len(lines)} new analyses.")
     if lines != []:
         df = pd.DataFrame(data = lines, columns= SONAR_ANALYSES_DTYPE.keys())
-        df.to_csv(file_path, index= False, header=True)
+        df.to_csv(staging_file_path, index= False, header=True)
 
 def fetch_sonar_mesures(output_path):
     project_list = query_server(type='projects')
