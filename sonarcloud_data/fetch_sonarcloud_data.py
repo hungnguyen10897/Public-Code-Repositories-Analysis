@@ -121,6 +121,7 @@ SONAR_MEASURE_DTYPE = OrderedDict({
     'new_lines': 'object'})
 
 SONAR_ISSUES_DTYPE = OrderedDict({
+    "project" : "object",
     "issue_key" : "object", 
     "type" : "object", 
     "rule" : "object", 
@@ -134,6 +135,31 @@ SONAR_ISSUES_DTYPE = OrderedDict({
     "update_date" : "object", 
     "close_date" :  "object"
 })
+
+SONAR_ANALYSES_DTYPE = OrderedDict({
+    "project" : "object", 
+    "analysis_key" : "object", 
+    "date" : "object", 
+    "project_version" : "object", 
+    "revision" : "object"
+})
+
+def write_metrics_file(metric_list):
+    metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
+
+    with open('./all_metrics.txt', 'w') as f:
+        for metric in metric_list:
+            # Ignore this, extremely long
+            if metric == 'sonarjava_feedback':
+                continue
+            f.write("{} - {} - {} - {} - {}\n".format(
+                'No ID' if 'id' not in metric else metric['id'],
+                'No Domain' if 'domain' not in metric else metric['domain'],
+                'No Key' if 'key' not in metric else metric['key'],
+                'No Type' if 'type' not in metric else metric['type'],
+                'No Description' if 'description' not in metric else metric['description']
+                ))
+
 
 def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts = None):
 
@@ -166,7 +192,7 @@ def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts =
 
     else:
         print("ERROR: Illegal info type.")
-        return None
+        return []
 
     r = requests.get(endpoint, params=params)
 
@@ -240,6 +266,32 @@ def load_metrics(path = None):
         return metrics_order
     except:
         print("ERROR: Reading metrics file")
+        sys.exit(1)
+
+def get_duration_from_str(input_str):
+
+    if input_str is not None:
+        idx_min = input_str.find('min')
+        idx_h = input_str.find('h')
+        idx_d = input_str.find('d')
+
+        if idx_d != -1:
+            days = int(input_str[:idx_d])
+            if len(input_str) == idx_d + 1:
+                return 24*60*days
+            return 24*60*days + get_duration_from_str(input_str[idx_d + 1:])
+
+        if idx_h != -1:
+            hours = int(input_str[:idx_h])
+            if len(input_str) == idx_h + 1:
+                return 60*hours           
+            return 60*hours + get_duration_from_str(input_str[idx_h + 1:])
+
+        if idx_min != -1:
+            mins = int(input_str[:idx_min])
+            return mins
+
+        print(f"ERROR: duration string '{input_str}' does not contain 'min', 'h' or 'd'.")
         sys.exit(1)
 
 def safe_cast(val, to_type, contain_comma = False):
@@ -366,32 +418,6 @@ def process_project_measures(project, output_path, metrics_path = None ):
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
     df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
 
-def get_duration_from_str(input_str):
-
-    if input_str is not None:
-        idx_min = input_str.find('min')
-        idx_h = input_str.find('h')
-        idx_d = input_str.find('d')
-
-        if idx_d != -1:
-            days = int(input_str[:idx_d])
-            if len(input_str) == idx_d + 1:
-                return 24*60*days
-            return 24*60*days + get_duration_from_str(input_str[idx_d + 1:])
-
-        if idx_h != -1:
-            hours = int(input_str[:idx_h])
-            if len(input_str) == idx_h + 1:
-                return 60*hours           
-            return 60*hours + get_duration_from_str(input_str[idx_h + 1:])
-
-        if idx_min != -1:
-            mins = int(input_str[:idx_min])
-            return mins
-
-        print(f"ERROR: duration string '{input_str}' does not contain 'min', 'h' or 'd'.")
-        sys.exit(1)
-
 def process_project_issues(project, output_path):
 
     project_key = project['key']
@@ -402,6 +428,9 @@ def process_project_issues(project, output_path):
 
     project_issues = query_server('issues', 1, project_key = project_key)
     print(f"\t\t{project_key} - {len(project_issues)} issues")
+
+    analyses = query_server('analyses',1, project_key = project_key)
+    analyses_date = list(map(lambda x: process_datetime(x['date']), analyses))
 
     issues = []
     for project_issue in project_issues:
@@ -424,35 +453,43 @@ def process_project_issues(project, output_path):
         update_date = None if 'updateDate' not in project_issue else process_datetime(project_issue['updateDate'])
         close_date = None if 'closeDate' not in project_issue else process_datetime(project_issue['closeDate'])
         type = None if 'type' not in project_issue else project_issue['type']
-    
-        issue = (issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
+     
+        issue = (project_key, issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
         issues.append(issue)
 
-    df = pd.DataFrame(data = issues, columns= SONAR_ISSUES_DTYPE.keys())
-    df = df.astype({
-        "effort" : "Int64",
-        "debt" : "Int64"
-    })
+    if issues != []:
+        df = pd.DataFrame(data = issues, columns= SONAR_ISSUES_DTYPE.keys())
+        df = df.astype({
+            "effort" : "Int64",
+            "debt" : "Int64"
+        })
 
-    df.to_csv(file_path, index=False, header=True)
+        df.to_csv(file_path, index=False, header=True)
 
-def write_metrics_file(metric_list):
-    metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
+def process_project_analyses(project, output_path):
 
-    with open('./all_metrics.txt', 'w') as f:
-        for metric in metric_list:
-            # Ignore this, extremely long
-            if metric == 'sonarjava_feedback':
-                continue
-            f.write("{} - {} - {} - {} - {}\n".format(
-                'No ID' if 'id' not in metric else metric['id'],
-                'No Domain' if 'domain' not in metric else metric['domain'],
-                'No Key' if 'key' not in metric else metric['key'],
-                'No Type' if 'type' not in metric else metric['type'],
-                'No Description' if 'description' not in metric else metric['description']
-                ))
+    project_key = project['key']
 
-def fetch_sonarqube_mesures(output_path):
+    output_path = Path(output_path).joinpath("analyses")
+    output_path.mkdir(parents=True, exist_ok=True)
+    file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
+
+    lines = []
+    analyses = query_server('analyses',1, project_key = project_key)
+    for analysis in analyses:
+        analysis_key = None if 'key' not in analysis else analysis['key']
+        date = None if 'date' not in analysis else process_datetime(analysis['date'])
+        project_version = None if 'projectVersion' not in analysis else analysis['projectVersion']
+        revision = None if 'revision' not in analysis else analysis['revision']
+
+        line = (project_key, analysis_key, date, project_version, revision)
+        lines.append(line)
+    
+    if lines != []:
+        df = pd.DataFrame(data = lines, columns= SONAR_ANALYSES_DTYPE.keys())
+        df.to_csv(file_path, index= False, header=True)
+
+def fetch_sonar_mesures(output_path):
     project_list = query_server(type='projects')
     project_list.sort(key = lambda x: x['key'])
 
@@ -474,6 +511,18 @@ def fetch_sonar_issues(output_path):
         process_project_issues(project, output_path)
         i += 1
 
+def fetch_sonar_data(output_path):
+
+    project_list = query_server(type='projects')
+    project_list.sort(key = lambda x: x['key'])
+
+    print(f"Total: {len(project_list)} projects.")
+    i = 0
+    for project in project_list:
+        print(f"\t{i}: ")
+        process_project_analyses(project, output_path)
+        i += 1
+
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
@@ -486,6 +535,5 @@ if __name__ == "__main__":
     # Write all metrics to a file
     # write_metrics_file(query_server(type='metrics'))
 
-    # fetch_sonarqube_mesures(output_path)
-    fetch_sonar_issues(output_path)
+    fetch_sonar_data(output_path)
 
