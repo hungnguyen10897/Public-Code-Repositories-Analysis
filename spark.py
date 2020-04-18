@@ -379,7 +379,7 @@ conf = SparkConf().setMaster('local[*]')
 sc = SparkContext
 spark = SparkSession.builder.config(conf = conf).getOrCreate()
 
-def get_source_data(source ,data_directory, load):
+def get_data_from_file(source ,data_directory, load):
 
     file_extension = "/*.csv" if load == "first" else "/*_staging.csv"
 
@@ -513,12 +513,19 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
                 print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
 
-def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
+def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
     # PREPARE DATA
-    ml_sonar_df = sonar_measures_df.join(sonar_analyses_df, sonar_measures_df.analysis_key == sonar_analyses_df.analysis_key, 
-    how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
-    df = jenkins_builds_df.join(ml_sonar_df, jenkins_builds_df.revision_number == ml_sonar_df.revision, how = 'inner')
+    if run_mode == "first":
+
+        ml_sonar_df = new_sonar_measures.join(new_sonar_analyses, new_sonar_measures.analysis_key == new_sonar_analyses.analysis_key, 
+        how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
+
+        df = new_jenkins_builds.join(ml_sonar_df, new_jenkins_builds.revision_number == ml_sonar_df.revision, how = 'inner')
+
+    elif run_mode == "incremental":
+        pass
+
 
     # Change data type from Int to Float to fit into estimators
     for column_name in ML1_NUMERICAL_COLUMNS:
@@ -534,24 +541,28 @@ def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_art
 
     train_predict(df, spark_artefacts_dir, run_mode, 1)
 
-def apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
+def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
     #PREPARE DATA
-    sonar_issues_df.createTempView('sonar_issues')
+    if run_mode == "first":
+        new_sonar_issues.createTempView('sonar_issues')
 
-    with open('./sonar_issues_count.sql', 'r') as f:
-        query1 = f.read()
-    sonar_issues_count = spark.sql(query1)
-    sonar_issues_count.createTempView('sonar_issues_count')
+        with open('./sonar_issues_count.sql', 'r') as f:
+            query1 = f.read()
+        sonar_issues_count = spark.sql(query1)
+        sonar_issues_count.createTempView('sonar_issues_count')
 
-    with open('./sonar_issues_count_with_current.sql', 'r') as f:
-        query2 = f.read()
-    sonar_issues_count_with_current = spark.sql(query2)
+        with open('./sonar_issues_count_with_current.sql', 'r') as f:
+            query2 = f.read()
+        sonar_issues_count_with_current = spark.sql(query2)
 
-    sonar_df = sonar_issues_count_with_current.join(sonar_analyses_df, sonar_issues_count_with_current.analysis_key == sonar_analyses_df.analysis_key,
-        how = "inner")
+        sonar_df = sonar_issues_count_with_current.join(new_sonar_analyses, sonar_issues_count_with_current.analysis_key == new_sonar_analyses.analysis_key,
+            how = "inner")
 
-    df = sonar_df.join(jenkins_builds_df, sonar_df.revision == jenkins_builds_df.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
+        df = sonar_df.join(new_jenkins_builds, sonar_df.revision == new_jenkins_builds.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
+
+    elif run_mode == "incremental":
+        pass
 
     # Change data types to fit in estimators
     for numerical_column in ML2_NUMERICAL_COLUMNS:
@@ -564,6 +575,7 @@ def apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artef
 
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
 
+    # Check for resources that enable incremental run
     if run_mode == "incremental":
         for i in ['1','2']:
             for obj in [f"pipeline_{i}",f"LogisticRegressionModel_{i}",f"DecisionTreeModel_{i}",f"RandomForestModel_{i}"]:
@@ -572,37 +584,59 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
                     print(f"{obj} does not exist in spark_artefacts. Rerun with run_mode = first")
                     run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
 
-    jenkins_builds_df = get_source_data("jenkins builds",jenkins_data_directory, run_mode)
-    jenkins_builds_df = jenkins_builds_df.filter("job IS NOT NULL")
-    jenkins_builds_df.persist()
-    print("Jenkins builds Count: ", jenkins_builds_df.count())
+        # Data from db
+        try:
+            db_jenkins_builds = spark.read.jdbc(CONNECTION_STR, "jenkins_builds", properties=CONNECTION_PROPERTIES)
+            db_sonar_analyses = spark.read.jdbc(CONNECTION_STR, "sonar_analyses", properties=CONNECTION_PROPERTIES) 
+            db_sonar_measures = spark.read.jdbc(CONNECTION_STR, "sonar_measures", properties=CONNECTION_PROPERTIES) 
+            db_sonar_issues = spark.read.jdbc(CONNECTION_STR, "sonar_issues", properties=CONNECTION_PROPERTIES) 
 
-    sonar_analyses_df = get_source_data("sonar analyses", sonar_data_directory, run_mode)
-    sonar_analyses_df = sonar_analyses_df.filter("project IS NOT NULL")
-    sonar_analyses_df.persist()
-    print("Sonar analyses Count: ", sonar_analyses_df.count())
+            for table,name in [(db_jenkins_builds,"jenkins_builds"), (db_sonar_analyses, "sonar_analyses"), (db_sonar_measures, "sonar_measures"), (db_sonar_issues, "sonar_issues")]:
+                if table.count() == 0:
+                    print(f"No data in table [{name}]. Rerun with run_mode = first")
+                    run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+                    
+        except:
+            print(f"Exception thrown when reading tables from Postgresql.")
+            run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
 
-    sonar_measures_df = get_source_data("sonar measures", sonar_data_directory, run_mode)
-    sonar_measures_df = sonar_measures_df.filter("project IS NOT NULL")
-    sonar_measures_df = sonar_measures_df.drop(*TO_DROP_SONAR_MEASURES_COLUMNS)
-    sonar_measures_df.persist()
-    print("Sonar measures Count: ", sonar_measures_df.count())
+    elif run_mode == "first":
+        db_jenkins_builds = None
+        db_sonar_analyses = None
+        db_sonar_measures = None
+        db_sonar_issues = None
 
-    sonar_issues_df = get_source_data("sonar issues", sonar_data_directory, run_mode)
-    sonar_issues_df = sonar_issues_df.filter("project IS NOT NULL")
-    sonar_issues_df.persist()
-    print("Sonar issues Count: ", sonar_issues_df.count())
+    new_jenkins_builds = get_data_from_file("jenkins builds",jenkins_data_directory, run_mode)
+    new_jenkins_builds = new_jenkins_builds.filter("job IS NOT NULL")
+    new_jenkins_builds.persist()
+    print("Jenkins builds Count: ", new_jenkins_builds.count())
+
+    new_sonar_analyses = get_data_from_file("sonar analyses", sonar_data_directory, run_mode)
+    new_sonar_analyses = new_sonar_analyses.filter("project IS NOT NULL AND analysis_key IS NOT NULL")
+    new_sonar_analyses.persist()
+    print("Sonar analyses Count: ", new_sonar_analyses.count())
+
+    new_sonar_measures = get_data_from_file("sonar measures", sonar_data_directory, run_mode)
+    new_sonar_measures = new_sonar_measures.filter("project IS NOT NULL AND analysis_key IS NOT NULL")
+    new_sonar_measures = new_sonar_measures.drop(*TO_DROP_SONAR_MEASURES_COLUMNS)
+    new_sonar_measures.persist()
+    print("Sonar measures Count: ", new_sonar_measures.count())
+
+    new_sonar_issues = get_data_from_file("sonar issues", sonar_data_directory, run_mode)
+    new_sonar_issues = new_sonar_issues.filter("project IS NOT NULL AND issue_key IS NOT NULL")
+    new_sonar_issues.persist()
+    print("Sonar issues Count: ", new_sonar_issues.count())
 
     # WRITE TO POSTGRESQL
     # write_mode = "overwrite" if run_mode == "first" else "append"
-    # jenkins_builds_df.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # sonar_measures_df.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # sonar_analyses_df.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # sonar_issues_df.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     # APPLY MACHINE LEARNING
-    apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode)
-    apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artefacts_dir, run_mode)
+    apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
+    apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
 
