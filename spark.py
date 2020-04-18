@@ -7,7 +7,7 @@ from pyspark.sql.types import *
 from pyspark.sql.utils import AnalysisException
 from pyspark.sql.functions import col, udf
 from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, VectorAssembler, MinMaxScaler, Imputer
-from pyspark.ml import Pipeline
+from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
@@ -15,6 +15,7 @@ import numpy as np
 from pathlib import Path
 from collections import OrderedDict
 import time
+import sys
 
 JENKINS_BUILD_DTYPE = OrderedDict({
     "job" : "object",
@@ -486,7 +487,7 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
         dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=5)
         rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
 
-        for algo, model_name in [(lr,f"LogisticRegressionModel_{i}"),(dt,f"DecisionTreeMode_{i}"),(rf,f"RandomForestModel_{i}")]:
+        for algo, model_name in [(lr,f"LogisticRegressionModel_{i}"),(dt,f"DecisionTreeModel_{i}"),(rf,f"RandomForestModel_{i}")]:
 
             print(f"{str(model_name)}")
             model = algo.fit(train)
@@ -500,18 +501,20 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
                 print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
 
     elif run_mode == "incremental":
-        pipeline = Pipeline.load(pipeline_path)
-        ml_df = pipeline.transform(df).select('features','label')
+        pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
+        ml_df = pipeline_model.transform(df).select('features','label')
     
         for model, name in [(LogisticRegressionModel, f"LogisticRegressionModel_{i}"), (DecisionTreeClassificationModel, f"DecisionTreeModel_{i}"), (RandomForestClassificationModel, f"RandomForestModel_{i}")]:
+
             model_path = Path(spark_artefacts_dir).joinpath(name)
             ml_model = model.load(str(model_path.absolute()))
-
             predictions = ml_model.transform(ml_df)
+ 
             predictions.cache()
             evaluator = MulticlassClassificationEvaluator()
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
                 print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
+
 
 def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
@@ -520,12 +523,21 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
 
         ml_sonar_df = new_sonar_measures.join(new_sonar_analyses, new_sonar_measures.analysis_key == new_sonar_analyses.analysis_key, 
         how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
-
         df = new_jenkins_builds.join(ml_sonar_df, new_jenkins_builds.revision_number == ml_sonar_df.revision, how = 'inner')
 
     elif run_mode == "incremental":
-        pass
+        
+        # New jenkins ~ db sonar
+        ml_sonar_df_1 = db_sonar_measures.join(db_sonar_analyses, db_sonar_measures.analysis_key == db_sonar_analyses.analysis_key, 
+        how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
+        df1 = new_jenkins_builds.join(ml_sonar_df_1, new_jenkins_builds.revision_number == ml_sonar_df_1.revision, how = 'inner')
 
+        # New sonar ~ db jenkins
+        ml_sonar_df_2 = new_sonar_measures.join(db_sonar_analyses, new_sonar_measures.analysis_key == db_sonar_analyses.analysis_key, 
+        how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
+        df2 = db_jenkins_builds.join(ml_sonar_df_2, db_jenkins_builds.revision_number == ml_sonar_df_2.revision, how = 'inner')
+
+        df = df1.union(df2).drop_duplicates()
 
     # Change data type from Int to Float to fit into estimators
     for column_name in ML1_NUMERICAL_COLUMNS:
@@ -543,26 +555,42 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
 
 def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
+    with open('./sonar_issues_count.sql', 'r') as f:
+        query1 = f.read()
+    with open('./sonar_issues_count_with_current.sql', 'r') as f:
+        query2 = f.read()
+
     #PREPARE DATA
     if run_mode == "first":
-        new_sonar_issues.createTempView('sonar_issues')
-
-        with open('./sonar_issues_count.sql', 'r') as f:
-            query1 = f.read()
+        new_sonar_issues.createOrReplaceTempView('sonar_issues')
         sonar_issues_count = spark.sql(query1)
-        sonar_issues_count.createTempView('sonar_issues_count')
-
-        with open('./sonar_issues_count_with_current.sql', 'r') as f:
-            query2 = f.read()
+        sonar_issues_count.createOrReplaceTempView('sonar_issues_count')
         sonar_issues_count_with_current = spark.sql(query2)
-
         sonar_df = sonar_issues_count_with_current.join(new_sonar_analyses, sonar_issues_count_with_current.analysis_key == new_sonar_analyses.analysis_key,
             how = "inner")
-
         df = sonar_df.join(new_jenkins_builds, sonar_df.revision == new_jenkins_builds.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
 
     elif run_mode == "incremental":
-        pass
+
+        # New jenkins ~ db sonar
+        db_sonar_issues.createOrReplaceTempView('sonar_issues')
+        sonar_issues_count_1 = spark.sql(query1)
+        sonar_issues_count_1.createOrReplaceTempView('sonar_issues_count')
+        sonar_issues_count_with_current_1 = spark.sql(query2)
+        sonar_df_1 = sonar_issues_count_with_current_1.join(db_sonar_analyses, sonar_issues_count_with_current_1.analysis_key == db_sonar_analyses.analysis_key,
+            how = "inner")
+        df1 = sonar_df_1.join(new_jenkins_builds, sonar_df_1.revision == new_jenkins_builds.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
+
+        # New sonar ~ db jenkins
+        new_sonar_issues.createOrReplaceTempView('sonar_issues')
+        sonar_issues_count_2 = spark.sql(query1)
+        sonar_issues_count_2.createOrReplaceTempView('sonar_issues_count')
+        sonar_issues_count_with_current_2 = spark.sql(query2)
+        sonar_df_2 = sonar_issues_count_with_current_2.join(db_sonar_analyses, sonar_issues_count_with_current_2.analysis_key == db_sonar_analyses.analysis_key,
+            how = "inner")
+        df2 = sonar_df_2.join(db_jenkins_builds, sonar_df_2.revision == db_jenkins_builds.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
+
+        df = df1.union(df2).drop_duplicates()
 
     # Change data types to fit in estimators
     for numerical_column in ML2_NUMERICAL_COLUMNS:
@@ -596,11 +624,12 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
                     print(f"No data in table [{name}]. Rerun with run_mode = first")
                     run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
                     
-        except:
-            print(f"Exception thrown when reading tables from Postgresql.")
+        except Exception as e:
+            print(f"Exception thrown when reading tables from Postgresql - {str(e)}. Rerun with run_mode = first")
             run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
 
     elif run_mode == "first":
+        sys.exit(0)
         db_jenkins_builds = None
         db_sonar_analyses = None
         db_sonar_measures = None
@@ -644,11 +673,11 @@ if __name__ == "__main__":
     sonar_data_directory = "./sonarcloud_data/data"
     spark_artefacts_dir = "./spark_artefacts"
 
-    mode = "first"
+    mode = "incremental"
     then = time.time()
     print(f"Start Spark processing - mode: {mode.upper()}")
 
-    run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+    run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, mode)
 
     spark.stop()
     print(f"Time elapsed: {time.time() - then}")
