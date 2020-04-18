@@ -466,28 +466,11 @@ def get_ml2_pipeline():
     pipeline = Pipeline(stages = stages)
     return pipeline
 
-def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
+def train_predict(df, spark_artefacts_dir, run_mode, i):
 
-    ml_sonar_df = sonar_measures_df.join(sonar_analyses_df, sonar_measures_df.analysis_key == sonar_analyses_df.analysis_key, 
-    how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
-
-    df = jenkins_builds_df.join(ml_sonar_df, jenkins_builds_df.revision_number == ml_sonar_df.revision, how = 'inner')
-    df.collect()
-    df.cache()  
-    print("DF for ML1 Count: {str(df.count())}")
-
-    # Change data type from Int to Float to fit into estimators
-    for column_name in ML1_NUMERICAL_COLUMNS:
-        if column_name in JENKINS_BUILD_DTYPE:
-            if JENKINS_BUILD_DTYPE[column_name] == 'Int64':
-                df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
-        elif column_name in SONAR_MEASURES_DTYPE:
-            if SONAR_MEASURES_DTYPE[column_name] == 'Int64':
-                df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
-
-    pipeline_path = Path(spark_artefacts_dir).joinpath("pipeline")
+    pipeline_path = Path(spark_artefacts_dir).joinpath(f"pipeline_{i}")
     if run_mode == "first":
-        pipeline = get_ml1_pipeline()
+        pipeline = get_ml1_pipeline() if i ==1 else get_ml2_pipeline()
         pipeline_model = pipeline.fit(df)
         pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
 
@@ -503,7 +486,7 @@ def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_art
         dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=5)
         rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
 
-        for algo, model_name in [(lr,"LogisticRegressionModel"),(dt,"DecisionTreeModel"),(rf,"RandomForestModel")]:
+        for algo, model_name in [(lr,f"LogisticRegressionModel_{i}"),(dt,f"DecisionTreeMode_{i}"),(rf,f"RandomForestModel_{i}")]:
 
             print(f"{str(model_name)}")
             model = algo.fit(train)
@@ -520,7 +503,7 @@ def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_art
         pipeline = Pipeline.load(pipeline_path)
         ml_df = pipeline.transform(df).select('features','label')
     
-        for model, name in [(LogisticRegressionModel, "LogisticRegressionModel"), (DecisionTreeClassificationModel, "DecisionTreeModel"), (RandomForestClassificationModel, "RandomForestModel")]:
+        for model, name in [(LogisticRegressionModel, f"LogisticRegressionModel_{i}"), (DecisionTreeClassificationModel, f"DecisionTreeModel_{i}"), (RandomForestClassificationModel, f"RandomForestModel_{i}")]:
             model_path = Path(spark_artefacts_dir).joinpath(name)
             ml_model = model.load(str(model_path.absolute()))
 
@@ -530,8 +513,30 @@ def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_art
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
                 print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
 
+def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
+
+    # PREPARE DATA
+    ml_sonar_df = sonar_measures_df.join(sonar_analyses_df, sonar_measures_df.analysis_key == sonar_analyses_df.analysis_key, 
+    how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
+    df = jenkins_builds_df.join(ml_sonar_df, jenkins_builds_df.revision_number == ml_sonar_df.revision, how = 'inner')
+
+    # Change data type from Int to Float to fit into estimators
+    for column_name in ML1_NUMERICAL_COLUMNS:
+        if column_name in JENKINS_BUILD_DTYPE:
+            if JENKINS_BUILD_DTYPE[column_name] == 'Int64':
+                df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
+        elif column_name in SONAR_MEASURES_DTYPE:
+            if SONAR_MEASURES_DTYPE[column_name] == 'Int64':
+                df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
+
+    df.cache()  
+    print(f"DF for ML1 Count: {str(df.count())}")
+
+    train_predict(df, spark_artefacts_dir, run_mode, 1)
+
 def apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
 
+    #PREPARE DATA
     sonar_issues_df.createTempView('sonar_issues')
 
     with open('./sonar_issues_count.sql', 'r') as f:
@@ -555,43 +560,17 @@ def apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artef
     df.cache()
     print(f"DF for ML2 Count: {str(df.count())}")
 
-    pipeline = get_ml2_pipeline()
-    pipeline_model = pipeline.fit(df)
-    ml_df = pipeline_model.transform(df)
-
-    train,test = ml_df.randomSplit([0.7, 0.3])
-    train.persist()
-    test.persist()
-    print("Training Dataset Count: " + str(train.count()))
-    print("Test Dataset Count: " + str(test.count()))
-
-    lr = LogisticRegression(featuresCol='features', labelCol='label', maxIter=10)
-    dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=5)
-    rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
-
-    for algo, model_name in [(lr,"LogisticRegressionModel"),(dt,"DecisionTreeModel"),(rf,"RandomForestModel")]:
-
-        print(f"{str(model_name)}")
-        model = algo.fit(train)
-        model_path = Path(spark_artefacts_dir).joinpath(model_name)
-        model.write().overwrite().save(str(model_path.absolute()))
-        
-        predictions = model.transform(test)
-        predictions.cache()
-        evaluator = MulticlassClassificationEvaluator()
-        for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
-            print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
-
-    print("***")
+    train_predict(df, spark_artefacts_dir, run_mode, 2)
 
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
 
     if run_mode == "incremental":
-        for obj in ["pipeline","LogisticRegressionModel","DecisionTreeModel","RandomForestModel"]:
-            obj_path = Path(spark_artefacts_dir).joinpath(obj)
-            if not obj_path.exists():
-                print(f"{obj} does not exist in spark_artefacts. Rerun with run_mode = first")
-                run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+        for i in ['1','2']:
+            for obj in [f"pipeline_{i}",f"LogisticRegressionModel_{i}",f"DecisionTreeModel_{i}",f"RandomForestModel_{i}"]:
+                obj_path = Path(spark_artefacts_dir).joinpath(obj)
+                if not obj_path.exists():
+                    print(f"{obj} does not exist in spark_artefacts. Rerun with run_mode = first")
+                    run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
 
     jenkins_builds_df = get_source_data("jenkins builds",jenkins_data_directory, run_mode)
     jenkins_builds_df = jenkins_builds_df.filter("job IS NOT NULL")
@@ -622,7 +601,7 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     # sonar_issues_df.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     # APPLY MACHINE LEARNING
-    # apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode)
+    apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode)
     apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
