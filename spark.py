@@ -297,6 +297,81 @@ SONAR_MEASURES_CATEGORICAL_COLUMNS = [
 
 ML1_CATEGORICAL_COLUMNS = JENKINS_BUILDS_CATEGORICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS
 
+ML2_NUMERICAL_COLUMNS = [
+    'introduced_blocker_code_smell', 
+    'introduced_critical_code_smell', 
+    'introduced_major_code_smell', 
+    'introduced_minor_code_smell', 
+    'introduced_info_code_smell', 
+    'introduced_null_severity_code_smell', 
+    'introduced_blocker_bug', 
+    'introduced_critical_bug', 
+    'introduced_major_bug', 
+    'introduced_minor_bug', 
+    'introduced_info_bug', 
+    'introduced_null_severity_bug', 
+    'introduced_blocker_vulnerability', 
+    'introduced_critical_vulnerability', 
+    'introduced_major_vulnerability', 
+    'introduced_minor_vulnerability', 
+    'introduced_info_vulnerability', 
+    'introduced_null_severity_vulnerability', 
+    'introduced_blocker_security_hotspot', 
+    'introduced_critical_security_hotspot', 
+    'introduced_major_security_hotspot', 
+    'introduced_minor_security_hotspot', 
+    'introduced_info_security_hotspot', 
+    'introduced_null_severity_security_hotspot', 
+    'removed_blocker_code_smell', 
+    'removed_critical_code_smell', 
+    'removed_major_code_smell', 
+    'removed_minor_code_smell', 
+    'removed_info_code_smell', 
+    'removed_null_severity_code_smell', 
+    'removed_blocker_bug', 
+    'removed_critical_bug', 
+    'removed_major_bug', 
+    'removed_minor_bug', 
+    'removed_info_bug', 
+    'removed_null_severity_bug', 
+    'removed_blocker_vulnerability', 
+    'removed_critical_vulnerability', 
+    'removed_major_vulnerability', 
+    'removed_minor_vulnerability', 
+    'removed_info_vulnerability', 
+    'removed_null_severity_vulnerability', 
+    'removed_blocker_security_hotspot', 
+    'removed_critical_security_hotspot', 
+    'removed_major_security_hotspot', 
+    'removed_minor_security_hotspot', 
+    'removed_info_security_hotspot', 
+    'removed_null_severity_security_hotspot', 
+    'current_blocker_code_smell', 
+    'current_critical_code_smell', 
+    'current_major_code_smell', 
+    'current_minor_code_smell', 
+    'current_info_code_smell', 
+    'current_null_severity_code_smell', 
+    'current_blocker_bug', 
+    'current_critical_bug', 
+    'current_major_bug', 
+    'current_minor_bug', 
+    'current_info_bug', 
+    'current_null_severity_bug', 
+    'current_blocker_vulnerability', 
+    'current_critical_vulnerability', 
+    'current_major_vulnerability', 
+    'current_minor_vulnerability', 
+    'current_info_vulnerability', 
+    'current_null_severity_vulnerability', 
+    'current_blocker_security_hotspot', 
+    'current_critical_security_hotspot', 
+    'current_major_security_hotspot', 
+    'current_minor_security_hotspot', 
+    'current_info_security_hotspot', 
+    'current_null_severity_security_hotspot'
+]
+
 CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
 CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
 
@@ -377,6 +452,20 @@ def get_ml1_pipeline():
     pipeline = Pipeline(stages = stages)
     return pipeline
 
+def get_ml2_pipeline():
+    stages = []
+
+    numerical_vector_assembler = VectorAssembler(inputCols=ML2_NUMERICAL_COLUMNS , outputCol="numerial_cols_vec", handleInvalid="keep")
+    scaler = MinMaxScaler(inputCol="numerial_cols_vec", outputCol= "features")
+    stages.append(numerical_vector_assembler)
+    stages.append(scaler)
+
+    label_str_indexer = StringIndexer(inputCol="result", outputCol="label", handleInvalid="keep")
+    stages.append(label_str_indexer)
+
+    pipeline = Pipeline(stages = stages)
+    return pipeline
+
 def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
 
     ml_sonar_df = sonar_measures_df.join(sonar_analyses_df, sonar_measures_df.analysis_key == sonar_analyses_df.analysis_key, 
@@ -385,7 +474,7 @@ def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_art
     df = jenkins_builds_df.join(ml_sonar_df, jenkins_builds_df.revision_number == ml_sonar_df.revision, how = 'inner')
     df.collect()
     df.cache()  
-    print("ml1_df Count: ",df.count())
+    print("DF for ML1 Count: {str(df.count())}")
 
     # Change data type from Int to Float to fit into estimators
     for column_name in ML1_NUMERICAL_COLUMNS:
@@ -443,20 +532,56 @@ def apply_ml1(jenkins_builds_df, sonar_measures_df, sonar_analyses_df, spark_art
 
 def apply_ml2(jenkins_builds_df, sonar_issues_df, sonar_analyses_df, spark_artefacts_dir, run_mode):
 
-    key_date_list = sonar_analyses_df.select("analysis_key", "date").rdd.map(lambda e: (e[0],e[1])).collect()
-    
-    def get_analysis_key(date):
+    sonar_issues_df.createTempView('sonar_issues')
 
-        for i in range(len(key_date_list)):
-            analysis_date = key_date_list[i][1]
-            if date > analysis_date:
-                return key_date_list[i-1][0]
-        return key_date_list[-1][0]
+    with open('./sonar_issues_count.sql', 'r') as f:
+        query1 = f.read()
+    sonar_issues_count = spark.sql(query1)
+    sonar_issues_count.createTempView('sonar_issues_count')
 
-    get_analysis_key_function = udf(lambda z: get_analysis_key(z), StringType())
-    spark.udf.register("get_analysis_key_function", get_analysis_key_function)
+    with open('./sonar_issues_count_with_current.sql', 'r') as f:
+        query2 = f.read()
+    sonar_issues_count_with_current = spark.sql(query2)
+
+    sonar_df = sonar_issues_count_with_current.join(sonar_analyses_df, sonar_issues_count_with_current.analysis_key == sonar_analyses_df.analysis_key,
+        how = "inner")
+
+    df = sonar_df.join(jenkins_builds_df, sonar_df.revision == jenkins_builds_df.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
+
+    # Change data types to fit in estimators
+    for numerical_column in ML2_NUMERICAL_COLUMNS:
+        df = df.withColumn(numerical_column, df[numerical_column].astype(DoubleType()))
     
-    sonar_issues_df = sonar_issues_df.withColumn('creation_analysis',get_analysis_key_function("creation_date") )
+    df.cache()
+    print(f"DF for ML2 Count: {str(df.count())}")
+
+    pipeline = get_ml2_pipeline()
+    pipeline_model = pipeline.fit(df)
+    ml_df = pipeline_model.transform(df)
+
+    train,test = ml_df.randomSplit([0.7, 0.3])
+    train.persist()
+    test.persist()
+    print("Training Dataset Count: " + str(train.count()))
+    print("Test Dataset Count: " + str(test.count()))
+
+    lr = LogisticRegression(featuresCol='features', labelCol='label', maxIter=10)
+    dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=5)
+    rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
+
+    for algo, model_name in [(lr,"LogisticRegressionModel"),(dt,"DecisionTreeModel"),(rf,"RandomForestModel")]:
+
+        print(f"{str(model_name)}")
+        model = algo.fit(train)
+        model_path = Path(spark_artefacts_dir).joinpath(model_name)
+        model.write().overwrite().save(str(model_path.absolute()))
+        
+        predictions = model.transform(test)
+        predictions.cache()
+        evaluator = MulticlassClassificationEvaluator()
+        for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
+            print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
+
     print("***")
 
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
