@@ -4,12 +4,14 @@
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import *
+from pyspark.sql.types import Row
 from pyspark.sql.utils import AnalysisException
 from pyspark.sql.functions import col, udf
-from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, VectorAssembler, MinMaxScaler, Imputer
+from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, VectorAssembler, MinMaxScaler, Imputer, ChiSqSelector, ChiSqSelectorModel
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from pyspark.ml.linalg import DenseVector
 
 import numpy as np
 from pathlib import Path
@@ -382,6 +384,25 @@ MODEL_PERFORMANCE_SCHEMA = StructType([
     StructField("accuracy", FloatType()),
     ])
 
+MODEL_INFO_SCHEMA = StructType([
+    StructField("model", StringType()),
+    StructField("train_data_amount", IntegerType()),
+    StructField("train_f1", FloatType()),
+    StructField("train_weighted_precision", FloatType()),
+    StructField("train_weighted_recall", FloatType()),
+    StructField("train_accuracy", FloatType()),
+    StructField("feature_1", StringType()),
+    StructField("feature_2", StringType()),
+    StructField("feature_3", StringType()),
+    StructField("feature_4", StringType()),
+    StructField("feature_5", StringType()),
+    StructField("feature_6", StringType()),
+    StructField("feature_7", StringType()),
+    StructField("feature_8", StringType()),
+    StructField("feature_9", StringType()),
+    StructField("feature_10", StringType()),
+])
+
 CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
 CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
 
@@ -476,7 +497,7 @@ def get_ml2_pipeline():
     pipeline = Pipeline(stages = stages)
     return pipeline
 
-def train_predict(df, spark_artefacts_dir, run_mode, i):
+def pipeline_process(df, spark_artefacts_dir, run_mode, i):
 
     pipeline_path = Path(spark_artefacts_dir).joinpath(f"pipeline_{i}")
     if run_mode == "first":
@@ -484,7 +505,51 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
         pipeline_model = pipeline.fit(df)
         pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
 
-        ml_df = pipeline_model.transform(df).select('features','label')
+    elif run_mode == "incremental":
+        pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
+
+    return pipeline_model.transform(df).select('features','label')
+
+def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
+
+    # APPLY CHI-SQUARE SELECTOR
+    name = f"ChiSquareSelectorModel_{i}"
+    selector_model_path = Path(spark_artefacts_dir).joinpath(name)
+    if run_mode == 'first':
+        selector =ChiSqSelector(numTopFeatures= 10, featuresCol="features", outputCol="selected_features", labelCol="label")
+        selector_model = selector.fit(ml_df)       
+        selector_model.write().overwrite().save(str(selector_model_path.absolute()))
+
+        feature_cols = ML2_NUMERICAL_COLUMNS if i == 2 else None
+
+        top_10_features = [feature_cols[i] for i in selector_model.selectedFeatures]
+        model_info = [name, ml_df.count(), None, None, None, None] + top_10_features
+        model_info_df = spark.createDataFrame(data = [model_info], schema = MODEL_INFO_SCHEMA)
+        # model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode='append', properties=CONNECTION_PROPERTIES)
+
+    elif run_mode == 'incremental':
+        selector_model = ChiSqSelectorModel.load(str(selector_model_path.absolute()))
+
+    # col_convert = udf(lambda col: sparse_to_dense_vector_convert(col))
+    # spark.udf.register("sparse_to_dense_vector_convert", )
+
+    ml_df_10 = selector_model.transform(ml_df)
+    ml_df_10 = ml_df_10.drop("features")
+
+    #Solve a problem with ChiSqSelector and Tree-based algorithm
+    ml_rdd_10 = ml_df_10.rdd.map(lambda row: Row(label = row[0], features =DenseVector(row[1].toArray())))
+    ml_df_10 = spark.createDataFrame(ml_rdd_10)
+
+    return ml_df_10
+
+def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features):
+
+    suffix = "_top_10" if only_top_features else ""
+    lr_model_name = f"LogisticRegressionModel_{i}" + suffix
+    dt_model_name = f"DecisionTreeModel_{i}" + suffix
+    rf_model_name = f"RandomForestModel_{i}" + suffix
+
+    if run_mode == "first":
 
         train,test = ml_df.randomSplit([0.7, 0.3])
         train.persist()
@@ -500,8 +565,7 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
         rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
 
         model_performance_lines = []
-        for algo, model_name in [(lr,f"LogisticRegressionModel_{i}"),(dt,f"DecisionTreeModel_{i}"),(rf,f"RandomForestModel_{i}")]:
-
+        for algo, model_name in [(lr, lr_model_name), (dt, dt_model_name), (rf,rf_model_name)]:
             print(model_name)
             model = algo.fit(train)
             model_path = Path(spark_artefacts_dir).joinpath(model_name)
@@ -521,16 +585,12 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
             model_performance_lines.append([model_name, test_count] + measures)
         
         model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
-        model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'overwrite', properties= CONNECTION_PROPERTIES)
+        # model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'overwrite', properties= CONNECTION_PROPERTIES)
 
     elif run_mode == "incremental":
-        pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
-        ml_df = pipeline_model.transform(df).select('features','label')
-
-        ml_df.persist()
     
         model_performance_lines = []
-        for model, name in [(LogisticRegressionModel, f"LogisticRegressionModel_{i}"), (DecisionTreeClassificationModel, f"DecisionTreeModel_{i}"), (RandomForestClassificationModel, f"RandomForestModel_{i}")]:
+        for model, name in [(LogisticRegressionModel, lr_model_name), (DecisionTreeClassificationModel, dt_model_name), (RandomForestClassificationModel, rf_model_name)]:
             
             print("\n\n" + name)
             model_path = Path(spark_artefacts_dir).joinpath(name)
@@ -587,7 +647,13 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
     df.persist()  
     print(f"DF for ML1 Count: {str(df.count())}")
 
-    train_predict(df, spark_artefacts_dir, run_mode, 1)
+    ml_df = pipeline_process(df, spark_artefacts_dir, run_mode, 1)
+
+    ml_df_10 = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 1)
+    ml_df_10 = ml_df_10.drop("features").withColumnRenamed("selected_features", "features")
+
+    train_predict(ml_df, spark_artefacts_dir, run_mode, 1, False)
+    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 1, True)
 
 def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
@@ -635,7 +701,11 @@ def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
     df.persist()
     print(f"DF for ML2 Count: {str(df.count())}")
 
-    train_predict(df, spark_artefacts_dir, run_mode, 2)
+    ml_df = pipeline_process(df, spark_artefacts_dir, run_mode, 2)
+    ml_df_10 = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 2)
+
+    # train_predict(ml_df, spark_artefacts_dir, run_mode, 2, False)
+    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 2, True)
 
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
 
@@ -692,14 +762,14 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     print("Sonar issues Count: ", new_sonar_issues.count())
 
     # WRITE TO POSTGRESQL
-    write_mode = "overwrite" if run_mode == "first" else "append"
-    new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # write_mode = "overwrite" if run_mode == "first" else "append"
+    # new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     # APPLY MACHINE LEARNING
-    apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
+    # apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
     apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
