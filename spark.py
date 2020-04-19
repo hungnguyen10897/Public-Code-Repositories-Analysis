@@ -657,7 +657,7 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features):
                 measures.append(measure)
                 print(f"\t{metricName}: {measure}")
 
-            model_performance_lines.append([model_name, test_count] + measures) 
+            model_performance_lines.append([name, ml_df.count()] + measures) 
 
         model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
         model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties = CONNECTION_PROPERTIES)
@@ -828,7 +828,7 @@ if __name__ == "__main__":
     sonar_data_directory = "./sonarcloud_data/data"
     spark_artefacts_dir = "./spark_artefacts"
 
-    mode = "first"
+    mode = "incremental"
     then = time.time()
     print(f"Start Spark processing - mode: {mode.upper()}")
 
