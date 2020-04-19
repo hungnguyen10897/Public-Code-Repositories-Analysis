@@ -157,5 +157,24 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 	);
 	ALTER TABLE model_performance OWNER TO pra;
 
-	
+	CREATE TABKE model_info(
+		model VARCHAR(20) NOT NULL,
+		train_data_amount INT,
+		train_f1 FLOAT,
+		train_weighted_precision FLOAT,
+		train_weighted_recall FLOAT,
+		train_accuracy FLOAT,
+		feature_1 VARCHAR,
+		feature_2 VARCHAR,
+		feature_3 VARCHAR,
+		feature_4 VARCHAR,
+		feature_5 VARCHAR,
+		feature_6 VARCHAR,
+		feature_7 VARCHAR,
+		feature_8 VARCHAR,
+		feature_9 VARCHAR,
+		feature_10 VARCHAR,
+		prcessed_date DATE DEFAULT CURRENT_DATE	
+	);
+	ALTER TABLE model_info OWNER to pra;
 EOSQL
