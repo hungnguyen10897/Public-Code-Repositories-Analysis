@@ -471,7 +471,7 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
 
     pipeline_path = Path(spark_artefacts_dir).joinpath(f"pipeline_{i}")
     if run_mode == "first":
-        pipeline = get_ml1_pipeline() if i ==1 else get_ml2_pipeline()
+        pipeline = get_ml1_pipeline() if i == 1 else get_ml2_pipeline()
         pipeline_model = pipeline.fit(df)
         pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
 
@@ -489,13 +489,13 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
 
         for algo, model_name in [(lr,f"LogisticRegressionModel_{i}"),(dt,f"DecisionTreeModel_{i}"),(rf,f"RandomForestModel_{i}")]:
 
-            print(f"{str(model_name)}")
+            print(model_name)
             model = algo.fit(train)
             model_path = Path(spark_artefacts_dir).joinpath(model_name)
             model.write().overwrite().save(str(model_path.absolute()))
             
             predictions = model.transform(test)
-            predictions.cache()
+            predictions.persist()
             evaluator = MulticlassClassificationEvaluator()
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
                 print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
@@ -503,14 +503,19 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
     elif run_mode == "incremental":
         pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
         ml_df = pipeline_model.transform(df).select('features','label')
+
+        ml_df.persist()
     
         for model, name in [(LogisticRegressionModel, f"LogisticRegressionModel_{i}"), (DecisionTreeClassificationModel, f"DecisionTreeModel_{i}"), (RandomForestClassificationModel, f"RandomForestModel_{i}")]:
-
+            
+            print("\n\n" + name)
             model_path = Path(spark_artefacts_dir).joinpath(name)
             ml_model = model.load(str(model_path.absolute()))
+
             predictions = ml_model.transform(ml_df)
- 
-            predictions.cache()
+            predictions.persist()
+            predictions.show(5)
+
             evaluator = MulticlassClassificationEvaluator()
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
                 print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
@@ -548,7 +553,7 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
             if SONAR_MEASURES_DTYPE[column_name] == 'Int64':
                 df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
 
-    df.cache()  
+    df.persist()  
     print(f"DF for ML1 Count: {str(df.count())}")
 
     train_predict(df, spark_artefacts_dir, run_mode, 1)
@@ -596,7 +601,7 @@ def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
     for numerical_column in ML2_NUMERICAL_COLUMNS:
         df = df.withColumn(numerical_column, df[numerical_column].astype(DoubleType()))
     
-    df.cache()
+    df.persist()
     print(f"DF for ML2 Count: {str(df.count())}")
 
     train_predict(df, spark_artefacts_dir, run_mode, 2)
@@ -629,7 +634,6 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
             run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
 
     elif run_mode == "first":
-        sys.exit(0)
         db_jenkins_builds = None
         db_sonar_analyses = None
         db_sonar_measures = None
