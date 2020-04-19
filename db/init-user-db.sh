@@ -147,7 +147,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         ALTER TABLE sonar_issues OWNER TO pra;	
 
 	CREATE TABLE model_performance(
-		model VARCHAR(20) NOT NULL,
+		model VARCHAR NOT NULL,
 		data_amount INT,
 		f1 FLOAT,
 		weighted_precision FLOAT,
@@ -157,8 +157,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 	);
 	ALTER TABLE model_performance OWNER TO pra;
 
-	CREATE TABKE model_info(
-		model VARCHAR(20) NOT NULL,
+	CREATE TABLE model_info(
+		model VARCHAR NOT NULL,
 		train_data_amount INT,
 		train_f1 FLOAT,
 		train_weighted_precision FLOAT,

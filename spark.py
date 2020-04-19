@@ -300,6 +300,9 @@ SONAR_MEASURES_CATEGORICAL_COLUMNS = [
 
 ML1_CATEGORICAL_COLUMNS = JENKINS_BUILDS_CATEGORICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS
 
+# to be updated later
+ML1_COLUMNS = []
+
 ML2_NUMERICAL_COLUMNS = [
     'introduced_blocker_code_smell', 
     'introduced_critical_code_smell', 
@@ -508,7 +511,16 @@ def pipeline_process(df, spark_artefacts_dir, run_mode, i):
     elif run_mode == "incremental":
         pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
 
-    return pipeline_model.transform(df).select('features','label')
+    return pipeline_model.transform(df).select('features','label'), pipeline_model
+
+def get_categorical_columns(ohe_category_sizes):
+
+    cols = []
+    for column, size in zip(ML1_CATEGORICAL_COLUMNS, ohe_category_sizes):
+        for i in range(size):
+            cols.append(f"{column}_index_{str(i)}")
+
+    return cols
 
 def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
 
@@ -520,18 +532,15 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
         selector_model = selector.fit(ml_df)       
         selector_model.write().overwrite().save(str(selector_model_path.absolute()))
 
-        feature_cols = ML2_NUMERICAL_COLUMNS if i == 2 else None
+        feature_cols = ML2_NUMERICAL_COLUMNS if i == 2 else ML1_COLUMNS
 
         top_10_features = [feature_cols[i] for i in selector_model.selectedFeatures]
         model_info = [name, ml_df.count(), None, None, None, None] + top_10_features
         model_info_df = spark.createDataFrame(data = [model_info], schema = MODEL_INFO_SCHEMA)
-        # model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode='append', properties=CONNECTION_PROPERTIES)
+        model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode='append', properties=CONNECTION_PROPERTIES)
 
     elif run_mode == 'incremental':
         selector_model = ChiSqSelectorModel.load(str(selector_model_path.absolute()))
-
-    # col_convert = udf(lambda col: sparse_to_dense_vector_convert(col))
-    # spark.udf.register("sparse_to_dense_vector_convert", )
 
     ml_df_10 = selector_model.transform(ml_df)
     ml_df_10 = ml_df_10.drop("features")
@@ -543,6 +552,11 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
     return ml_df_10
 
 def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features):
+
+    if i == 1:
+        ML_COLUMNS = ML1_COLUMNS
+    elif i == 2:
+        ML_COLUMNS = ML2_NUMERICAL_COLUMNS
 
     suffix = "_top_10" if only_top_features else ""
     lr_model_name = f"LogisticRegressionModel_{i}" + suffix
@@ -565,27 +579,63 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features):
         rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
 
         model_performance_lines = []
+        model_info_lines = []
         for algo, model_name in [(lr, lr_model_name), (dt, dt_model_name), (rf,rf_model_name)]:
             print(model_name)
             model = algo.fit(train)
             model_path = Path(spark_artefacts_dir).joinpath(model_name)
             model.write().overwrite().save(str(model_path.absolute()))
+
+            # Tree-based Feature Importances:
+            if algo in [dt, rf]:
+
+                f_importances = model.featureImportances
+                indices = f_importances.indices.tolist()
+                values = f_importances.values.tolist()
+
+                value_index_lst = list(zip(values, indices))
+                value_index_lst.sort(key = lambda x: x[0], reverse= True)
+                sorted_indices = list(map(lambda x: x[1], value_index_lst))
+
+                importance_sorted_features = [ML_COLUMNS[i] for i in sorted_indices]
+                num_features = len(importance_sorted_features)
+                
+                if num_features > 10:
+                    importance_sorted_features = importance_sorted_features[:10]
+                elif num_features < 10:
+                    importance_sorted_features = importance_sorted_features + (10 - num_features)*[None]
+
+            else:
+                importance_sorted_features = 10 * [None]
             
             predictions = model.transform(test)
             predictions.persist()
             predictions.show(5)
 
+            train_predictions = model.transform(train)
+            train_predictions.persist()
+            train_predictions.show(5)
+
             measures = []
+            train_measures = []
             evaluator = MulticlassClassificationEvaluator()
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
                 measure = evaluator.evaluate(predictions, {evaluator.metricName: metricName})
                 measures.append(measure)
                 print(f"\t{metricName}: {measure}")
+
+                train_measure = evaluator.evaluate(train_predictions, {evaluator.metricName: metricName})
+                train_measures.append(train_measure)
+                print(f"\tTrain-{metricName}: {train_measure}")
             
             model_performance_lines.append([model_name, test_count] + measures)
-        
+            model_info_lines.append([model_name, train_count] + train_measures + importance_sorted_features)
+            
         model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
-        # model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'overwrite', properties= CONNECTION_PROPERTIES)
+        model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties= CONNECTION_PROPERTIES)
+
+        model_info_df = spark.createDataFrame(data= model_info_lines, schema = MODEL_INFO_SCHEMA)
+        model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode = 'append', properties= CONNECTION_PROPERTIES)
 
     elif run_mode == "incremental":
     
@@ -647,10 +697,10 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
     df.persist()  
     print(f"DF for ML1 Count: {str(df.count())}")
 
-    ml_df = pipeline_process(df, spark_artefacts_dir, run_mode, 1)
-
+    ml_df, pipeline_model = pipeline_process(df, spark_artefacts_dir, run_mode, 1)
+    global ML1_COLUMNS
+    ML1_COLUMNS = get_categorical_columns(pipeline_model.stages[2].categorySizes) + ML1_NUMERICAL_COLUMNS
     ml_df_10 = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 1)
-    ml_df_10 = ml_df_10.drop("features").withColumnRenamed("selected_features", "features")
 
     train_predict(ml_df, spark_artefacts_dir, run_mode, 1, False)
     train_predict(ml_df_10, spark_artefacts_dir, run_mode, 1, True)
@@ -701,10 +751,10 @@ def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
     df.persist()
     print(f"DF for ML2 Count: {str(df.count())}")
 
-    ml_df = pipeline_process(df, spark_artefacts_dir, run_mode, 2)
+    ml_df,_ = pipeline_process(df, spark_artefacts_dir, run_mode, 2)
     ml_df_10 = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 2)
 
-    # train_predict(ml_df, spark_artefacts_dir, run_mode, 2, False)
+    train_predict(ml_df, spark_artefacts_dir, run_mode, 2, False)
     train_predict(ml_df_10, spark_artefacts_dir, run_mode, 2, True)
 
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
@@ -762,14 +812,14 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     print("Sonar issues Count: ", new_sonar_issues.count())
 
     # WRITE TO POSTGRESQL
-    # write_mode = "overwrite" if run_mode == "first" else "append"
-    # new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    write_mode = "overwrite" if run_mode == "first" else "append"
+    new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     # APPLY MACHINE LEARNING
-    # apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
+    apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
     apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
