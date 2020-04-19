@@ -373,6 +373,15 @@ ML2_NUMERICAL_COLUMNS = [
     'current_null_severity_security_hotspot'
 ]
 
+MODEL_PERFORMANCE_SCHEMA = StructType([
+    StructField("model", StringType()),
+    StructField("data_amount", IntegerType()),
+    StructField("f1", FloatType()),
+    StructField("weighted_precision", FloatType()),
+    StructField("weighted_recall", FloatType()),
+    StructField("accuracy", FloatType()),
+    ])
+
 CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
 CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
 
@@ -480,13 +489,17 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
         train,test = ml_df.randomSplit([0.7, 0.3])
         train.persist()
         test.persist()
-        print("Training Dataset Count: " + str(train.count()))
-        print("Test Dataset Count: " + str(test.count()))
+
+        train_count = train.count()
+        print("Training Dataset Count: " + str(train_count))
+        test_count = test.count()
+        print("Test Dataset Count: " + str(test_count))
 
         lr = LogisticRegression(featuresCol='features', labelCol='label', maxIter=10)
         dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=5)
         rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=100)
 
+        model_performance_lines = []
         for algo, model_name in [(lr,f"LogisticRegressionModel_{i}"),(dt,f"DecisionTreeModel_{i}"),(rf,f"RandomForestModel_{i}")]:
 
             print(model_name)
@@ -496,9 +509,19 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
             
             predictions = model.transform(test)
             predictions.persist()
+            predictions.show(5)
+
+            measures = []
             evaluator = MulticlassClassificationEvaluator()
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
-                print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
+                measure = evaluator.evaluate(predictions, {evaluator.metricName: metricName})
+                measures.append(measure)
+                print(f"\t{metricName}: {measure}")
+            
+            model_performance_lines.append([model_name, test_count] + measures)
+        
+        model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
+        model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'overwrite', properties= CONNECTION_PROPERTIES)
 
     elif run_mode == "incremental":
         pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
@@ -506,6 +529,7 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
 
         ml_df.persist()
     
+        model_performance_lines = []
         for model, name in [(LogisticRegressionModel, f"LogisticRegressionModel_{i}"), (DecisionTreeClassificationModel, f"DecisionTreeModel_{i}"), (RandomForestClassificationModel, f"RandomForestModel_{i}")]:
             
             print("\n\n" + name)
@@ -516,10 +540,17 @@ def train_predict(df, spark_artefacts_dir, run_mode, i):
             predictions.persist()
             predictions.show(5)
 
+            measures = []
             evaluator = MulticlassClassificationEvaluator()
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
-                print(f"\t{metricName}: {evaluator.evaluate(predictions, {evaluator.metricName: metricName})}")
+                measure = evaluator.evaluate(predictions, {evaluator.metricName: metricName})
+                measures.append(measure)
+                print(f"\t{metricName}: {measure}")
 
+            model_performance_lines.append([model_name, test_count] + measures) 
+
+        model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
+        model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties = CONNECTION_PROPERTIES)
 
 def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
@@ -661,11 +692,11 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     print("Sonar issues Count: ", new_sonar_issues.count())
 
     # WRITE TO POSTGRESQL
-    # write_mode = "overwrite" if run_mode == "first" else "append"
-    # new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    write_mode = "overwrite" if run_mode == "first" else "append"
+    new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     # APPLY MACHINE LEARNING
     apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
@@ -677,7 +708,7 @@ if __name__ == "__main__":
     sonar_data_directory = "./sonarcloud_data/data"
     spark_artefacts_dir = "./spark_artefacts"
 
-    mode = "incremental"
+    mode = "first"
     then = time.time()
     print(f"Start Spark processing - mode: {mode.upper()}")
 

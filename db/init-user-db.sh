@@ -146,4 +146,16 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
         );
         ALTER TABLE sonar_issues OWNER TO pra;	
 
+	CREATE TABLE model_performance(
+		model VARCHAR(20) NOT NULL,
+		data_amount INT,
+		f1 FLOAT,
+		weighted_precision FLOAT,
+		weighted_recall FLOAT,
+		accuracy FLOAT,
+		processed_date DATE DEFAULT CURRENT_DATE 
+	);
+	ALTER TABLE model_performance OWNER TO pra;
+
+	
 EOSQL
