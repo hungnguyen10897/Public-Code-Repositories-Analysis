@@ -6,12 +6,12 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.types import Row
 from pyspark.sql.utils import AnalysisException
-from pyspark.sql.functions import col, udf
-from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, VectorAssembler, MinMaxScaler, Imputer, ChiSqSelector, ChiSqSelectorModel
+from pyspark.sql.functions import col, udf, lit
+from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, StringIndexerModel, VectorAssembler, MinMaxScaler, Imputer, ChiSqSelector, ChiSqSelectorModel
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-from pyspark.ml.linalg import DenseVector
+from pyspark.ml.linalg import *
 
 import numpy as np
 from pathlib import Path
@@ -378,6 +378,9 @@ ML2_NUMERICAL_COLUMNS = [
     'current_null_severity_security_hotspot'
 ]
 
+#to be updated later
+ML3_COLUMNS = []
+
 MODEL_PERFORMANCE_SCHEMA = StructType([
     StructField("model", StringType()),
     StructField("data_amount", IntegerType()),
@@ -450,7 +453,7 @@ def get_data_from_file(source ,data_directory, load):
         df = spark.read.csv(str(files_dir.absolute()) + file_extension, sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
             ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST').drop_duplicates()
     except AnalysisException:
-        print(f"No .csv files for [{source}]")
+        print(f"No .csv files for [{source}].")
         df = spark.createDataFrame(spark.sparkContext.emptyRDD(), schema)
     return df
 
@@ -500,6 +503,14 @@ def get_ml2_pipeline():
     pipeline = Pipeline(stages = stages)
     return pipeline
 
+def get_ml3_pipeline():
+
+    stages = []
+    str_idx = StringIndexer(inputCol="rule", outputCol="rule_idx")
+    ohe = OneHotEncoderEstimator(inputCols=["rule_idx"], outputCols=["rule_vec"])
+    stages = [str_idx, ohe]
+    return Pipeline(stages= stages)
+
 def pipeline_process(df, spark_artefacts_dir, run_mode, i):
 
     pipeline_path = Path(spark_artefacts_dir).joinpath(f"pipeline_{i}")
@@ -532,7 +543,12 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
         selector_model = selector.fit(ml_df)       
         selector_model.write().overwrite().save(str(selector_model_path.absolute()))
 
-        feature_cols = ML2_NUMERICAL_COLUMNS if i == 2 else ML1_COLUMNS
+        if i == 1:
+            feature_cols = ML1_COLUMNS
+        elif i == 2:
+            feature_cols = ML2_NUMERICAL_COLUMNS
+        elif i == 3:
+            feature_cols = ML3_COLUMNS
 
         top_10_features = [feature_cols[i] for i in selector_model.selectedFeatures]
         model_info = [name, ml_df.count(), None, None, None, None] + top_10_features
@@ -551,12 +567,14 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
 
     return ml_df_10
 
-def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features):
+def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features, ):
 
     if i == 1:
         ML_COLUMNS = ML1_COLUMNS
     elif i == 2:
         ML_COLUMNS = ML2_NUMERICAL_COLUMNS
+    elif i == 3:
+        ML_COLUMNS = ML3_COLUMNS
 
     suffix = "_top_10" if only_top_features else ""
     lr_model_name = f"LogisticRegressionModel_{i}" + suffix
@@ -597,7 +615,7 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features):
                 value_index_lst.sort(key = lambda x: x[0], reverse= True)
                 sorted_indices = list(map(lambda x: x[1], value_index_lst))
 
-                importance_sorted_features = [ML_COLUMNS[i] for i in sorted_indices]
+                importance_sorted_features = [ML_COLUMNS[j] for j in sorted_indices]
                 num_features = len(importance_sorted_features)
                 
                 if num_features > 10:
@@ -662,28 +680,11 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features):
         model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
         model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties = CONNECTION_PROPERTIES)
 
-def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
+def prepare_data_ml1(jenkins_builds, sonar_measures, sonar_analyses):
 
-    # PREPARE DATA
-    if run_mode == "first":
-
-        ml_sonar_df = new_sonar_measures.join(new_sonar_analyses, new_sonar_measures.analysis_key == new_sonar_analyses.analysis_key, 
-        how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
-        df = new_jenkins_builds.join(ml_sonar_df, new_jenkins_builds.revision_number == ml_sonar_df.revision, how = 'inner')
-
-    elif run_mode == "incremental":
-        
-        # New jenkins ~ db sonar
-        ml_sonar_df_1 = db_sonar_measures.join(db_sonar_analyses, db_sonar_measures.analysis_key == db_sonar_analyses.analysis_key, 
-        how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
-        df1 = new_jenkins_builds.join(ml_sonar_df_1, new_jenkins_builds.revision_number == ml_sonar_df_1.revision, how = 'inner')
-
-        # New sonar ~ db jenkins
-        ml_sonar_df_2 = new_sonar_measures.join(db_sonar_analyses, new_sonar_measures.analysis_key == db_sonar_analyses.analysis_key, 
-        how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
-        df2 = db_jenkins_builds.join(ml_sonar_df_2, db_jenkins_builds.revision_number == ml_sonar_df_2.revision, how = 'inner')
-
-        df = df1.union(df2).drop_duplicates()
+    ml_sonar_df = sonar_measures.join(sonar_analyses, sonar_measures.analysis_key == sonar_analyses.analysis_key, 
+    how = 'inner').select(*(['revision'] + SONAR_MEASURES_NUMERICAL_COLUMNS + SONAR_MEASURES_CATEGORICAL_COLUMNS))
+    df = jenkins_builds.join(ml_sonar_df, jenkins_builds.revision_number == ml_sonar_df.revision, how = 'inner')
 
     # Change data type from Int to Float to fit into estimators
     for column_name in ML1_NUMERICAL_COLUMNS:
@@ -693,6 +694,21 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
         elif column_name in SONAR_MEASURES_DTYPE:
             if SONAR_MEASURES_DTYPE[column_name] == 'Int64':
                 df = df.withColumn(column_name, df[column_name].astype(DoubleType()))
+    return df
+
+def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
+
+    # PREPARE DATA
+    if run_mode == "first":
+        df = prepare_data_ml1(new_jenkins_builds, new_sonar_measures, new_sonar_analyses)
+
+    elif run_mode == "incremental":
+        # New jenkins ~ db sonar
+        df1 = prepare_data_ml1(new_jenkins_builds, db_sonar_measures, db_sonar_analyses)
+        # New sonar ~ db jenkins
+        df2 = prepare_data_ml1(db_jenkins_builds, new_sonar_measures, db_sonar_analyses)
+
+        df = df1.union(df2).drop_duplicates()
 
     df.persist()  
     print(f"DF for ML1 Count: {str(df.count())}")
@@ -705,48 +721,41 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
     train_predict(ml_df, spark_artefacts_dir, run_mode, 1, False)
     train_predict(ml_df_10, spark_artefacts_dir, run_mode, 1, True)
 
-def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
+def prepare_data_ml2(jenkins_builds, sonar_issues, sonar_analyses):
 
     with open('./sonar_issues_count.sql', 'r') as f:
         query1 = f.read()
     with open('./sonar_issues_count_with_current.sql', 'r') as f:
         query2 = f.read()
 
-    #PREPARE DATA
-    if run_mode == "first":
-        new_sonar_issues.createOrReplaceTempView('sonar_issues')
-        sonar_issues_count = spark.sql(query1)
-        sonar_issues_count.createOrReplaceTempView('sonar_issues_count')
-        sonar_issues_count_with_current = spark.sql(query2)
-        sonar_df = sonar_issues_count_with_current.join(new_sonar_analyses, sonar_issues_count_with_current.analysis_key == new_sonar_analyses.analysis_key,
-            how = "inner")
-        df = sonar_df.join(new_jenkins_builds, sonar_df.revision == new_jenkins_builds.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
-
-    elif run_mode == "incremental":
-
-        # New jenkins ~ db sonar
-        db_sonar_issues.createOrReplaceTempView('sonar_issues')
-        sonar_issues_count_1 = spark.sql(query1)
-        sonar_issues_count_1.createOrReplaceTempView('sonar_issues_count')
-        sonar_issues_count_with_current_1 = spark.sql(query2)
-        sonar_df_1 = sonar_issues_count_with_current_1.join(db_sonar_analyses, sonar_issues_count_with_current_1.analysis_key == db_sonar_analyses.analysis_key,
-            how = "inner")
-        df1 = sonar_df_1.join(new_jenkins_builds, sonar_df_1.revision == new_jenkins_builds.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
-
-        # New sonar ~ db jenkins
-        new_sonar_issues.createOrReplaceTempView('sonar_issues')
-        sonar_issues_count_2 = spark.sql(query1)
-        sonar_issues_count_2.createOrReplaceTempView('sonar_issues_count')
-        sonar_issues_count_with_current_2 = spark.sql(query2)
-        sonar_df_2 = sonar_issues_count_with_current_2.join(db_sonar_analyses, sonar_issues_count_with_current_2.analysis_key == db_sonar_analyses.analysis_key,
-            how = "inner")
-        df2 = sonar_df_2.join(db_jenkins_builds, sonar_df_2.revision == db_jenkins_builds.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
-
-        df = df1.union(df2).drop_duplicates()
+    sonar_issues.createOrReplaceTempView('sonar_issues')
+    sonar_issues_count = spark.sql(query1)
+    sonar_issues_count.createOrReplaceTempView('sonar_issues_count')
+    sonar_issues_count_with_current = spark.sql(query2)
+    sonar_df = sonar_issues_count_with_current.join(sonar_analyses, sonar_issues_count_with_current.analysis_key == sonar_analyses.analysis_key,
+        how = "inner")
+    df = sonar_df.join(jenkins_builds, sonar_df.revision == jenkins_builds.revision_number, how = "inner").select(*(['result'] + ML2_NUMERICAL_COLUMNS))
 
     # Change data types to fit in estimators
     for numerical_column in ML2_NUMERICAL_COLUMNS:
         df = df.withColumn(numerical_column, df[numerical_column].astype(DoubleType()))
+
+    return df
+
+def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
+
+    if run_mode == "first":
+        df = prepare_data_ml2(new_jenkins_builds, new_sonar_issues, new_sonar_analyses)
+
+    elif run_mode == "incremental":
+
+        # New jenkins ~ db sonar
+        df1 = prepare_data_ml2(new_jenkins_builds, db_sonar_issues, db_sonar_analyses)
+
+        # New sonar ~ db jenkins
+        df2 = prepare_data_ml2(db_jenkins_builds, new_sonar_issues, db_sonar_analyses)
+
+        df = df1.union(df2).drop_duplicates()
     
     df.persist()
     print(f"DF for ML2 Count: {str(df.count())}")
@@ -756,6 +765,102 @@ def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
 
     train_predict(ml_df, spark_artefacts_dir, run_mode, 2, False)
     train_predict(ml_df_10, spark_artefacts_dir, run_mode, 2, True)
+
+def sum_sparse_vectors(v1, v2):
+
+    def add_to_map(m, e):
+        key = e[0]
+        value = e[1]
+        if key in m:
+            m[key] = m[key] + value
+        else:
+            m[key] = value
+        return m
+    results = OrderedDict()
+
+    v = list(zip(v1.indices, v1.values)) + list(zip(v2.indices, v2.values))
+    v.sort(key = lambda x: x[0])
+    for e in v:
+        results = add_to_map(results, e)
+    return SparseVector(v1.size, list(results.keys()), list(results.values()))
+
+def prepre_data_ml3(jenkins_builds, sonar_issues,sonar_analyses ,pipeline_model, label_idx_model):
+    
+    removed_rules_df = sonar_issues.filter("status IN ('RESOLVED', 'CLOSED', 'REVIEWED')").select("current_analysis_key","rule")
+    df1 = pipeline_model.transform(removed_rules_df)
+    rdd1 = df1.rdd.map(lambda x : (x[0],x[3])).reduceByKey(lambda v1,v2: sum_sparse_vectors(v1,v2)) \
+                                                .map(lambda x: Row(current_analysis_key = x[0], removed_rule_vec = x[1]))
+    removed_issues_rule_vec_df = spark.createDataFrame(rdd1)
+
+    introduced_rules_df = sonar_issues.filter("status IN ('OPEN', 'REOPENED', 'CONFIRMED', 'TO_REVIEW')").select("creation_analysis_key","rule")
+    df2 = pipeline_model.transform(introduced_rules_df)
+    rdd2 = df2.rdd.map(lambda x : (x[0],x[3])).reduceByKey(lambda v1,v2: sum_sparse_vectors(v1,v2)) \
+                                                .map(lambda x: Row(creation_analysis_key = x[0], introduced_rule_vec = x[1]))
+    introduced_issues_rule_vec_df = spark.createDataFrame(rdd2)
+
+    joined_sonar_rules_df = removed_issues_rule_vec_df.join(introduced_issues_rule_vec_df, 
+        removed_issues_rule_vec_df.current_analysis_key == introduced_issues_rule_vec_df.creation_analysis_key, how = "outer")
+
+    joined_sonar_rules_df.createOrReplaceTempView("sonar_rules")
+    joined_sonar_rules_df = spark.sql("""SELECT 
+        coalesce(current_analysis_key, creation_analysis_key) AS analysis_key,
+        introduced_rule_vec,
+        removed_rule_vec
+        FROM sonar_rules
+        """)
+
+    imputed_sonar_rules_rdd = joined_sonar_rules_df.rdd.map(lambda row: Row(
+        analysis_key = row[0], 
+        introduced_rule_vec = SparseVector(486,{}) if row[1] is None else row[1], 
+        removed_rule_vec = SparseVector(486,{}) if row[2] is None else row[2]))
+
+    imputed_sonar_rules_df = spark.createDataFrame(imputed_sonar_rules_rdd)        
+    
+    v_assembler = VectorAssembler(inputCols=["removed_rule_vec", "introduced_rule_vec"], outputCol="features")
+    sonar_issues_df = v_assembler.transform(imputed_sonar_rules_df).select("analysis_key","features")
+
+    sonar_df = sonar_issues_df.join(sonar_analyses, sonar_issues_df.analysis_key == sonar_analyses.analysis_key, how = "inner")
+    df = sonar_df.join(jenkins_builds, sonar_df.revision == jenkins_builds.revision_number, how = "inner").select("result", "features")
+    ml_df = label_idx_model.transform(df).select("label", "features")
+
+    return ml_df
+
+def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
+
+    pipeline_path = Path(spark_artefacts_dir).joinpath("pipeline_3")
+    label_idx_model_path = Path(spark_artefacts_dir).joinpath("label_indexer_3")
+    #PREPARE DATA
+    if run_mode == "first":
+
+        pipeline_model = get_ml3_pipeline().fit(new_sonar_issues)
+        pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
+
+        label_idx_model = StringIndexer(inputCol="result", outputCol="label").fit(new_jenkins_builds)
+        label_idx_model.write().overwrite().save(str(label_idx_model_path.absolute()))
+
+        ml_df = prepre_data_ml3(new_jenkins_builds, new_sonar_issues, new_sonar_analyses, pipeline_model, label_idx_model)
+
+    elif run_mode == "incremental":
+        
+        pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
+        label_idx_model = StringIndexerModel.load(str(label_idx_model_path.absolute()))
+
+        ml_df1 = prepre_data_ml3(new_jenkins_builds, new_sonar_issues, new_sonar_analyses, pipeline_model, label_idx_model)
+        ml_df2 = prepre_data_ml3(new_jenkins_builds, new_sonar_issues, new_sonar_analyses, pipeline_model, label_idx_model)
+
+        ml_df = ml_df1.union(ml_df2).drop_duplicates()
+
+    rules = pipeline_model.stages[0].labels
+    global ML3_COLUMNS
+    ML3_COLUMNS = list(map(lambda x: "removed_" + x, rules)) + list(map(lambda x: "introduced_" + x, rules))
+
+    ml_df.persist()
+    print(f"DF for ML3 Count: {ml_df.count()}")
+
+    ml_df_10 = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 3)
+
+    train_predict(ml_df, spark_artefacts_dir, run_mode, 3, False)
+    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 3, True)
 
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
 
@@ -821,6 +926,7 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     # APPLY MACHINE LEARNING
     apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
     apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
+    apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
 
@@ -828,7 +934,7 @@ if __name__ == "__main__":
     sonar_data_directory = "./sonarcloud_data/data"
     spark_artefacts_dir = "./spark_artefacts"
 
-    mode = "incremental"
+    mode = "first"
     then = time.time()
     print(f"Start Spark processing - mode: {mode.upper()}")
 
@@ -836,3 +942,4 @@ if __name__ == "__main__":
 
     spark.stop()
     print(f"Time elapsed: {time.time() - then}")
+
