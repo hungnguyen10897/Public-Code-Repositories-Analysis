@@ -27,5 +27,8 @@ $ airflow scheduler
 $ airflow webserver
 
 ## Spark and ML
-- predictions.select("label","prediction").groupby("label","prediction").count().show()  To show how the model is performing
+- Add
+export PYSPARK_PYTHON=[PATH_TO_PYTHON_EXECUTABLE]
+export PYSPARK_DRIVER_PYTHON=[PATH_TO_PYTHON_EXECUTABLE]
+to $SPARK_HOME/conf/spark-envs.sh in case of weird error while debugging
 
