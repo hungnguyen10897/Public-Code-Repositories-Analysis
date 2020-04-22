@@ -12,6 +12,8 @@ from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.linalg import *
+from pyspark.ml.stat import ChiSquareTest
+import pandas as pd
 
 import numpy as np
 from pathlib import Path
@@ -471,7 +473,7 @@ def get_ml1_pipeline():
         ohe_output_cols.append(categorical_column + "_class_vec")
         stages.append(str_indexer)
 
-    encoder = OneHotEncoderEstimator(inputCols=ohe_input_cols, outputCols=ohe_output_cols, handleInvalid="keep")
+    encoder = OneHotEncoderEstimator(inputCols=ohe_input_cols, outputCols=ohe_output_cols, handleInvalid="keep", dropLast=False)
     stages.append(encoder)
 
     numerical_vector_assembler = VectorAssembler(inputCols=ML1_NUMERICAL_COLUMNS , outputCol="numerial_cols_vec", handleInvalid="keep")
@@ -507,7 +509,7 @@ def get_ml3_pipeline():
 
     stages = []
     str_idx = StringIndexer(inputCol="rule", outputCol="rule_idx")
-    ohe = OneHotEncoderEstimator(inputCols=["rule_idx"], outputCols=["rule_vec"])
+    ohe = OneHotEncoderEstimator(inputCols=["rule_idx"], outputCols=["rule_vec"], dropLast=False)
     stages = [str_idx, ohe]
     return Pipeline(stages= stages)
 
@@ -539,10 +541,8 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
     name = f"ChiSquareSelectorModel_{i}"
     selector_model_path = Path(spark_artefacts_dir).joinpath(name)
     if run_mode == 'first':
-        selector =ChiSqSelector(numTopFeatures= 10, featuresCol="features", outputCol="selected_features", labelCol="label")
-        selector_model = selector.fit(ml_df)       
-        selector_model.write().overwrite().save(str(selector_model_path.absolute()))
 
+        feature_cols = []
         if i == 1:
             feature_cols = ML1_COLUMNS
         elif i == 2:
@@ -550,10 +550,23 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
         elif i == 3:
             feature_cols = ML3_COLUMNS
 
+        # ChiSq Test
+        r = ChiSquareTest.test(ml_df, "features", "label")
+        pValues = r.select("pvalues").collect()[0][0].tolist()
+        stats = r.select("statistics").collect()[0][0].tolist()
+        dof = r.select("degreesOfFreedom").collect()[0][0]
+        df = pd.DataFrame({"pvalues": pValues, "dof" : dof, "stats" : stats ,'name': ML3_COLUMNS}, columns = ['pvalues', 'dof', 'stats', 'name'])
+        df_sorted = df.sort_values(by = "stats", ascending = False)
+
+        # ChiSq Selector
+        selector =ChiSqSelector(numTopFeatures= 10, featuresCol="features", outputCol="selected_features", labelCol="label")
+        selector_model = selector.fit(ml_df)       
+        selector_model.write().overwrite().save(str(selector_model_path.absolute()))
+
         top_10_features = [feature_cols[i] for i in selector_model.selectedFeatures]
         model_info = [name, ml_df.count(), None, None, None, None] + top_10_features
         model_info_df = spark.createDataFrame(data = [model_info], schema = MODEL_INFO_SCHEMA)
-        model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode='append', properties=CONNECTION_PROPERTIES)
+        # model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode='append', properties=CONNECTION_PROPERTIES)
 
     elif run_mode == 'incremental':
         selector_model = ChiSqSelectorModel.load(str(selector_model_path.absolute()))
@@ -650,10 +663,10 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features, ):
             model_info_lines.append([model_name, train_count] + train_measures + importance_sorted_features)
             
         model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
-        model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties= CONNECTION_PROPERTIES)
+        # model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties= CONNECTION_PROPERTIES)
 
         model_info_df = spark.createDataFrame(data= model_info_lines, schema = MODEL_INFO_SCHEMA)
-        model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode = 'append', properties= CONNECTION_PROPERTIES)
+        # model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode = 'append', properties= CONNECTION_PROPERTIES)
 
     elif run_mode == "incremental":
     
@@ -678,7 +691,7 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features, ):
             model_performance_lines.append([name, ml_df.count()] + measures) 
 
         model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
-        model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties = CONNECTION_PROPERTIES)
+        # model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties = CONNECTION_PROPERTIES)
 
 def prepare_data_ml1(jenkins_builds, sonar_measures, sonar_analyses):
 
@@ -809,10 +822,12 @@ def prepre_data_ml3(jenkins_builds, sonar_issues,sonar_analyses ,pipeline_model,
         FROM sonar_rules
         """)
 
+    num_rules = len(pipeline_model.stages[0].labels)
+
     imputed_sonar_rules_rdd = joined_sonar_rules_df.rdd.map(lambda row: Row(
         analysis_key = row[0], 
-        introduced_rule_vec = SparseVector(486,{}) if row[1] is None else row[1], 
-        removed_rule_vec = SparseVector(486,{}) if row[2] is None else row[2]))
+        introduced_rule_vec = SparseVector(num_rules,{}) if row[1] is None else row[1], 
+        removed_rule_vec = SparseVector(num_rules,{}) if row[2] is None else row[2]))
 
     imputed_sonar_rules_df = spark.createDataFrame(imputed_sonar_rules_rdd)        
     
@@ -918,14 +933,14 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
 
     # WRITE TO POSTGRESQL
     write_mode = "overwrite" if run_mode == "first" else "append"
-    new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    # new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     # APPLY MACHINE LEARNING
-    apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
-    apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
+    # apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
+    # apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
     apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
