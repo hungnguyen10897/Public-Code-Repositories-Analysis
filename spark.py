@@ -390,6 +390,9 @@ MODEL_PERFORMANCE_SCHEMA = StructType([
     StructField("weighted_precision", FloatType()),
     StructField("weighted_recall", FloatType()),
     StructField("accuracy", FloatType()),
+    StructField("area_under_ROC", FloatType()),
+    StructField("area_under_PR", FloatType()),
+    StructField("predicted_negative_rate", FloatType()),
     ])
 
 MODEL_INFO_SCHEMA = StructType([
@@ -399,6 +402,9 @@ MODEL_INFO_SCHEMA = StructType([
     StructField("train_weighted_precision", FloatType()),
     StructField("train_weighted_recall", FloatType()),
     StructField("train_accuracy", FloatType()),
+    StructField("train_area_under_ROC", FloatType()),
+    StructField("train_area_under_PR", FloatType()),
+    StructField("train_predicted_negative_rate", FloatType()),
     StructField("feature_1", StringType()),
     StructField("feature_importance_1", FloatType()),
     StructField("feature_2", StringType()),
@@ -483,7 +489,7 @@ def get_ml1_pipeline():
         ohe_output_cols.append(categorical_column + "_class_vec")
         stages.append(str_indexer)
 
-    encoder = OneHotEncoderEstimator(inputCols=ohe_input_cols, outputCols=ohe_output_cols, handleInvalid="keep", dropLast=False)
+    encoder = OneHotEncoderEstimator(inputCols=ohe_input_cols, outputCols=ohe_output_cols, handleInvalid="error", dropLast=False)
     stages.append(encoder)
 
     numerical_vector_assembler = VectorAssembler(inputCols=ML1_NUMERICAL_COLUMNS , outputCol="numerial_cols_vec", handleInvalid="keep")
@@ -580,9 +586,9 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
             top_10_features.append(feature_cols[j])
             top_10_feaures_importance.append(stats[j])
 
-        model_info = [name, ml_df.count(), None, None, None, None] + top_10_feaures_importance
+        model_info = [name, ml_df.count(), None, None, None, None, None, None, None] + top_10_feaures_importance
         model_info_df = spark.createDataFrame(data = [model_info], schema = MODEL_INFO_SCHEMA)
-        # model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode='append', properties=CONNECTION_PROPERTIES)
+        model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode='append', properties=CONNECTION_PROPERTIES)
 
     elif run_mode == 'incremental':
         selector_model = ChiSqSelectorModel.load(str(selector_model_path.absolute()))
@@ -655,12 +661,12 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, top_10_columns):
                     importance_sorted_features.append(ML_COLUMNS[index])
                     importance_sorted_features.append(value)
 
-                num_features = len(importance_sorted_features)
+                length = len(importance_sorted_features)
                 
-                if num_features > 20:
+                if length > 20:
                     importance_sorted_features = importance_sorted_features[:20]
-                elif num_features < 20:
-                    importance_sorted_features = importance_sorted_features + (20 - num_features)*[None]
+                elif length < 20:
+                    importance_sorted_features = importance_sorted_features + (20 - length)*[None]
 
             else:
                 importance_sorted_features = 20 * [None]
@@ -689,28 +695,30 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, top_10_columns):
             bin_eval = BinaryClassificationEvaluator()
             for metricName in ["areaUnderROC" , "areaUnderPR"]:
                 measure = bin_eval.evaluate(predictions, {bin_eval.metricName: metricName})
-                # measures.append(measure)
+                measures.append(measure)
                 print(f"\t{metricName}: {measure}")
 
                 train_measure = bin_eval.evaluate(train_predictions, {bin_eval.metricName: metricName})
-                # train_measures.append(train_measure)
+                train_measures.append(train_measure)
                 print(f"\tTrain-{metricName}: {train_measure}")
 
             # Predicted negatives
             predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / predictions.select("label").filter("label = 1.0").count()
             print(f"\tpredicted_negative_rate: {predicted_negative_rate}")
+            measures.append(predicted_negative_rate)
 
             train_predicted_negative_rate = train_predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / train_predictions.select("label").filter("label = 1.0").count()
             print(f"\ttrain_predicted_negative_rate: {train_predicted_negative_rate}")
+            train_measures.append(train_predicted_negative_rate)
             
             model_performance_lines.append([model_name, test_count] + measures)
             model_info_lines.append([model_name, train_count] + train_measures + importance_sorted_features)
             
         model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
-        # model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties= CONNECTION_PROPERTIES)
+        model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties= CONNECTION_PROPERTIES)
 
         model_info_df = spark.createDataFrame(data= model_info_lines, schema = MODEL_INFO_SCHEMA)
-        # model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode = 'append', properties= CONNECTION_PROPERTIES)
+        model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode = 'append', properties= CONNECTION_PROPERTIES)
 
     elif run_mode == "incremental":
     
@@ -735,17 +743,18 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, top_10_columns):
             bin_eval = BinaryClassificationEvaluator()
             for metricName in ["areaUnderROC" , "areaUnderPR"]:
                 measure = bin_eval.evaluate(predictions, {bin_eval.metricName: metricName})
-                # measures.append(measure)
+                measures.append(measure)
                 print(f"\t{metricName}: {measure}")
 
             # Predicted negatives
             predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / predictions.select("label").filter("label = 1.0").count()
             print(f"\tpredicted_negative_rate: {predicted_negative_rate}")
+            measures.append(predicted_negative_rate)
 
             model_performance_lines.append([name, ml_df.count()] + measures) 
 
         model_performance_df = spark.createDataFrame(data= model_performance_lines, schema = MODEL_PERFORMANCE_SCHEMA)
-        # model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties = CONNECTION_PROPERTIES)
+        model_performance_df.write.jdbc(CONNECTION_STR, 'model_performance', mode = 'append', properties = CONNECTION_PROPERTIES)
 
 def prepare_data_ml1(jenkins_builds, sonar_measures, sonar_analyses):
 
@@ -1015,16 +1024,14 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
 
     # WRITE TO POSTGRESQL
     write_mode = "overwrite" if run_mode == "first" else "append"
-    # new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    # new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
-
-    #
+    new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
 
     # APPLY MACHINE LEARNING
-    # apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
-    # apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
+    apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
+    apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
     apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
