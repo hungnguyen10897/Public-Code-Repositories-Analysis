@@ -6,11 +6,11 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.types import Row
 from pyspark.sql.utils import AnalysisException
-from pyspark.sql.functions import col, udf, lit
+from pyspark.sql.functions import col, udf
 from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, StringIndexerModel, VectorAssembler, MinMaxScaler, Imputer, ChiSqSelector, ChiSqSelectorModel
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
-from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator, BinaryClassificationEvaluator
 from pyspark.ml.linalg import *
 from pyspark.ml.stat import ChiSquareTest
 import pandas as pd
@@ -400,15 +400,25 @@ MODEL_INFO_SCHEMA = StructType([
     StructField("train_weighted_recall", FloatType()),
     StructField("train_accuracy", FloatType()),
     StructField("feature_1", StringType()),
+    StructField("feature_importance_1", FloatType()),
     StructField("feature_2", StringType()),
+    StructField("feature_importance_2", FloatType()),
     StructField("feature_3", StringType()),
+    StructField("feature_importance_3", FloatType()),
     StructField("feature_4", StringType()),
+    StructField("feature_importance_4", FloatType()),
     StructField("feature_5", StringType()),
+    StructField("feature_importance_5", FloatType()),
     StructField("feature_6", StringType()),
+    StructField("feature_importance_6", FloatType()),
     StructField("feature_7", StringType()),
+    StructField("feature_importance_7", FloatType()),
     StructField("feature_8", StringType()),
+    StructField("feature_importance_8", FloatType()),
     StructField("feature_9", StringType()),
+    StructField("feature_importance_9", FloatType()),
     StructField("feature_10", StringType()),
+    StructField("feature_importance_10", FloatType()),
 ])
 
 CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
@@ -550,26 +560,36 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
         elif i == 3:
             feature_cols = ML3_COLUMNS
 
-        # ChiSq Test
+        # ChiSq Test to obtain ChiSquare values (higher -> more dependence between feature and lable -> better)
         r = ChiSquareTest.test(ml_df, "features", "label")
         pValues = r.select("pvalues").collect()[0][0].tolist()
         stats = r.select("statistics").collect()[0][0].tolist()
         dof = r.select("degreesOfFreedom").collect()[0][0]
-        df = pd.DataFrame({"pvalues": pValues, "dof" : dof, "stats" : stats ,'name': ML3_COLUMNS}, columns = ['pvalues', 'dof', 'stats', 'name'])
-        df_sorted = df.sort_values(by = "stats", ascending = False)
+        # df = pd.DataFrame({"pvalues": pValues, "dof" : dof, "stats" : stats ,'name': ML3_COLUMNS}, columns = ['pvalues', 'dof', 'stats', 'name'])
+        # df_sorted = df.sort_values(by = "stats", ascending = False)
 
         # ChiSq Selector
         selector =ChiSqSelector(numTopFeatures= 10, featuresCol="features", outputCol="selected_features", labelCol="label")
         selector_model = selector.fit(ml_df)       
         selector_model.write().overwrite().save(str(selector_model_path.absolute()))
 
-        top_10_features = [feature_cols[i] for i in selector_model.selectedFeatures]
-        model_info = [name, ml_df.count(), None, None, None, None] + top_10_features
+        top_10_feaures_importance = []
+        top_10_features = []
+        for j in selector_model.selectedFeatures:
+            top_10_feaures_importance.append(feature_cols[j])
+            top_10_features.append(feature_cols[j])
+            top_10_feaures_importance.append(stats[j])
+
+        model_info = [name, ml_df.count(), None, None, None, None] + top_10_feaures_importance
         model_info_df = spark.createDataFrame(data = [model_info], schema = MODEL_INFO_SCHEMA)
         # model_info_df.write.jdbc(CONNECTION_STR, 'model_info', mode='append', properties=CONNECTION_PROPERTIES)
 
     elif run_mode == 'incremental':
         selector_model = ChiSqSelectorModel.load(str(selector_model_path.absolute()))
+        top_10_features = []
+        for j in selector_model.selectedFeatures:
+            top_10_features.append(feature_cols[j])
+
 
     ml_df_10 = selector_model.transform(ml_df)
     ml_df_10 = ml_df_10.drop("features")
@@ -578,18 +598,21 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
     ml_rdd_10 = ml_df_10.rdd.map(lambda row: Row(label = row[0], features =DenseVector(row[1].toArray())))
     ml_df_10 = spark.createDataFrame(ml_rdd_10)
 
-    return ml_df_10
+    return ml_df_10, top_10_features
 
-def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features, ):
+def train_predict(ml_df, spark_artefacts_dir, run_mode, i, top_10_columns):
 
-    if i == 1:
-        ML_COLUMNS = ML1_COLUMNS
-    elif i == 2:
-        ML_COLUMNS = ML2_NUMERICAL_COLUMNS
-    elif i == 3:
-        ML_COLUMNS = ML3_COLUMNS
+    if top_10_columns is not None:
+        ML_COLUMNS = top_10_columns
+    else:
+        if i == 1:
+            ML_COLUMNS = ML1_COLUMNS
+        elif i == 2:
+            ML_COLUMNS = ML2_NUMERICAL_COLUMNS
+        elif i == 3:
+            ML_COLUMNS = ML3_COLUMNS
 
-    suffix = "_top_10" if only_top_features else ""
+    suffix = "_top_10" if top_10_columns is not None else ""
     lr_model_name = f"LogisticRegressionModel_{i}" + suffix
     dt_model_name = f"DecisionTreeModel_{i}" + suffix
     rf_model_name = f"RandomForestModel_{i}" + suffix
@@ -617,7 +640,7 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features, ):
             model_path = Path(spark_artefacts_dir).joinpath(model_name)
             model.write().overwrite().save(str(model_path.absolute()))
 
-            # Tree-based Feature Importances:
+            # Tree-based algorithm's Feature Importances:
             if algo in [dt, rf]:
 
                 f_importances = model.featureImportances
@@ -626,18 +649,21 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features, ):
 
                 value_index_lst = list(zip(values, indices))
                 value_index_lst.sort(key = lambda x: x[0], reverse= True)
-                sorted_indices = list(map(lambda x: x[1], value_index_lst))
+                
+                importance_sorted_features = []
+                for value, index in value_index_lst:
+                    importance_sorted_features.append(ML_COLUMNS[index])
+                    importance_sorted_features.append(value)
 
-                importance_sorted_features = [ML_COLUMNS[j] for j in sorted_indices]
                 num_features = len(importance_sorted_features)
                 
-                if num_features > 10:
-                    importance_sorted_features = importance_sorted_features[:10]
-                elif num_features < 10:
-                    importance_sorted_features = importance_sorted_features + (10 - num_features)*[None]
+                if num_features > 20:
+                    importance_sorted_features = importance_sorted_features[:20]
+                elif num_features < 20:
+                    importance_sorted_features = importance_sorted_features + (20 - num_features)*[None]
 
             else:
-                importance_sorted_features = 10 * [None]
+                importance_sorted_features = 20 * [None]
             
             predictions = model.transform(test)
             predictions.persist()
@@ -649,15 +675,33 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features, ):
 
             measures = []
             train_measures = []
-            evaluator = MulticlassClassificationEvaluator()
+
+            ma_eval = MulticlassClassificationEvaluator()
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
-                measure = evaluator.evaluate(predictions, {evaluator.metricName: metricName})
+                measure = ma_eval.evaluate(predictions, {ma_eval.metricName: metricName})
                 measures.append(measure)
                 print(f"\t{metricName}: {measure}")
 
-                train_measure = evaluator.evaluate(train_predictions, {evaluator.metricName: metricName})
+                train_measure = ma_eval.evaluate(train_predictions, {ma_eval.metricName: metricName})
                 train_measures.append(train_measure)
                 print(f"\tTrain-{metricName}: {train_measure}")
+
+            bin_eval = BinaryClassificationEvaluator()
+            for metricName in ["areaUnderROC" , "areaUnderPR"]:
+                measure = bin_eval.evaluate(predictions, {bin_eval.metricName: metricName})
+                # measures.append(measure)
+                print(f"\t{metricName}: {measure}")
+
+                train_measure = bin_eval.evaluate(train_predictions, {bin_eval.metricName: metricName})
+                # train_measures.append(train_measure)
+                print(f"\tTrain-{metricName}: {train_measure}")
+
+            # Predicted negatives
+            predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / predictions.select("label").filter("label = 1.0").count()
+            print(f"\tpredicted_negative_rate: {predicted_negative_rate}")
+
+            train_predicted_negative_rate = train_predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / train_predictions.select("label").filter("label = 1.0").count()
+            print(f"\ttrain_predicted_negative_rate: {train_predicted_negative_rate}")
             
             model_performance_lines.append([model_name, test_count] + measures)
             model_info_lines.append([model_name, train_count] + train_measures + importance_sorted_features)
@@ -682,11 +726,21 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, only_top_features, ):
             predictions.show(5)
 
             measures = []
-            evaluator = MulticlassClassificationEvaluator()
+            ma_eval = MulticlassClassificationEvaluator()
             for metricName in ["f1","weightedPrecision","weightedRecall","accuracy"]:
-                measure = evaluator.evaluate(predictions, {evaluator.metricName: metricName})
+                measure = ma_eval.evaluate(predictions, {ma_eval.metricName: metricName})
                 measures.append(measure)
                 print(f"\t{metricName}: {measure}")
+
+            bin_eval = BinaryClassificationEvaluator()
+            for metricName in ["areaUnderROC" , "areaUnderPR"]:
+                measure = bin_eval.evaluate(predictions, {bin_eval.metricName: metricName})
+                # measures.append(measure)
+                print(f"\t{metricName}: {measure}")
+
+            # Predicted negatives
+            predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / predictions.select("label").filter("label = 1.0").count()
+            print(f"\tpredicted_negative_rate: {predicted_negative_rate}")
 
             model_performance_lines.append([name, ml_df.count()] + measures) 
 
@@ -711,6 +765,15 @@ def prepare_data_ml1(jenkins_builds, sonar_measures, sonar_analyses):
 
 def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
+    modify_result = udf(lambda x: "SUCCESS" if x == "SUCCESS" else "FAIL", StringType())
+    spark.udf.register("modify_result" , modify_result)
+
+    if new_jenkins_builds is not None:
+        new_jenkins_builds = new_jenkins_builds.withColumn("result", modify_result("result"))
+
+    if db_jenkins_builds is not None:
+        db_jenkins_builds = db_jenkins_builds.withColumn("result", modify_result("result"))
+
     # PREPARE DATA
     if run_mode == "first":
         df = prepare_data_ml1(new_jenkins_builds, new_sonar_measures, new_sonar_analyses)
@@ -729,10 +792,10 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
     ml_df, pipeline_model = pipeline_process(df, spark_artefacts_dir, run_mode, 1)
     global ML1_COLUMNS
     ML1_COLUMNS = get_categorical_columns(pipeline_model.stages[2].categorySizes) + ML1_NUMERICAL_COLUMNS
-    ml_df_10 = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 1)
+    ml_df_10, ml_10_columns = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 1)
 
-    train_predict(ml_df, spark_artefacts_dir, run_mode, 1, False)
-    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 1, True)
+    train_predict(ml_df, spark_artefacts_dir, run_mode, 1, None)
+    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 1, ml_10_columns)
 
 def prepare_data_ml2(jenkins_builds, sonar_issues, sonar_analyses):
 
@@ -757,6 +820,15 @@ def prepare_data_ml2(jenkins_builds, sonar_issues, sonar_analyses):
 
 def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
+    modify_result = udf(lambda x: "SUCCESS" if x == "SUCCESS" else "FAIL", StringType())
+    spark.udf.register("modify_result" , modify_result)
+
+    if new_jenkins_builds is not None:
+        new_jenkins_builds = new_jenkins_builds.withColumn("result", modify_result("result"))
+
+    if db_jenkins_builds is not None:
+        db_jenkins_builds = db_jenkins_builds.withColumn("result", modify_result("result"))
+
     if run_mode == "first":
         df = prepare_data_ml2(new_jenkins_builds, new_sonar_issues, new_sonar_analyses)
 
@@ -774,10 +846,10 @@ def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
     print(f"DF for ML2 Count: {str(df.count())}")
 
     ml_df,_ = pipeline_process(df, spark_artefacts_dir, run_mode, 2)
-    ml_df_10 = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 2)
+    ml_df_10, ml_10_columns = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 2)
 
-    train_predict(ml_df, spark_artefacts_dir, run_mode, 2, False)
-    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 2, True)
+    train_predict(ml_df, spark_artefacts_dir, run_mode, 2, None)
+    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 2, ml_10_columns)
 
 def sum_sparse_vectors(v1, v2):
 
@@ -842,6 +914,16 @@ def prepre_data_ml3(jenkins_builds, sonar_issues,sonar_analyses ,pipeline_model,
 
 def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
+    # Change build result to only SUCCESS/FAIL for binary classification
+    modify_result = udf(lambda x: "SUCCESS" if x == "SUCCESS" else "FAIL", StringType())
+    spark.udf.register("modify_result" , modify_result)
+
+    if new_jenkins_builds is not None:
+        new_jenkins_builds = new_jenkins_builds.withColumn("result", modify_result("result"))
+
+    if db_jenkins_builds is not None:
+        db_jenkins_builds = db_jenkins_builds.withColumn("result", modify_result("result"))
+
     pipeline_path = Path(spark_artefacts_dir).joinpath("pipeline_3")
     label_idx_model_path = Path(spark_artefacts_dir).joinpath("label_indexer_3")
     #PREPARE DATA
@@ -860,8 +942,8 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
         pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
         label_idx_model = StringIndexerModel.load(str(label_idx_model_path.absolute()))
 
-        ml_df1 = prepre_data_ml3(new_jenkins_builds, new_sonar_issues, new_sonar_analyses, pipeline_model, label_idx_model)
-        ml_df2 = prepre_data_ml3(new_jenkins_builds, new_sonar_issues, new_sonar_analyses, pipeline_model, label_idx_model)
+        ml_df1 = prepre_data_ml3(new_jenkins_builds, db_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
+        ml_df2 = prepre_data_ml3(db_jenkins_builds, new_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
 
         ml_df = ml_df1.union(ml_df2).drop_duplicates()
 
@@ -872,10 +954,10 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
     ml_df.persist()
     print(f"DF for ML3 Count: {ml_df.count()}")
 
-    ml_df_10 = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 3)
+    ml_df_10, ml_10_columns = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 3)
 
-    train_predict(ml_df, spark_artefacts_dir, run_mode, 3, False)
-    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 3, True)
+    train_predict(ml_df, spark_artefacts_dir, run_mode, 3, None)
+    train_predict(ml_df_10, spark_artefacts_dir, run_mode, 3, ml_10_columns)
 
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
 
@@ -937,6 +1019,8 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     # new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
     # new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
     # new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+
+    #
 
     # APPLY MACHINE LEARNING
     # apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
