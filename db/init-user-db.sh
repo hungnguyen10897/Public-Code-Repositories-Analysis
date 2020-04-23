@@ -153,6 +153,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		weighted_precision FLOAT,
 		weighted_recall FLOAT,
 		accuracy FLOAT,
+		area_under_ROC FLOAT,
+		area_under_PR FLOAT,
 		processed_date DATE DEFAULT CURRENT_DATE 
 	);
 	ALTER TABLE model_performance OWNER TO pra;
@@ -164,16 +166,28 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		train_weighted_precision FLOAT,
 		train_weighted_recall FLOAT,
 		train_accuracy FLOAT,
+		train_area_under_ROC FLOAT,
+		train_area_under_PR FLOAT,
 		feature_1 VARCHAR,
+		feature_importance_1 FLOAT,
 		feature_2 VARCHAR,
+		feature_importance_2 FLOAT,
 		feature_3 VARCHAR,
+		feature_importance_3 FLOAT,
 		feature_4 VARCHAR,
+		feature_importance_4 FLOAT,
 		feature_5 VARCHAR,
+		feature_importance_5 FLOAT,
 		feature_6 VARCHAR,
+		feature_importance_6 FLOAT,
 		feature_7 VARCHAR,
+		feature_importance_7 FLOAT,
 		feature_8 VARCHAR,
+		feature_importance_8 FLOAT,
 		feature_9 VARCHAR,
+		feature_importance_9 FLOAT,
 		feature_10 VARCHAR,
+		feature_importance_10 FLOAT,
 		prcessed_date DATE DEFAULT CURRENT_DATE	
 	);
 	ALTER TABLE model_info OWNER to pra;
