@@ -469,7 +469,7 @@ def get_data_from_file(source ,data_directory, load):
     schema = StructType(field)
     try:
         df = spark.read.csv(str(files_dir.absolute()) + file_extension, sep=',', schema = schema, ignoreLeadingWhiteSpace = True, 
-            ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST').drop_duplicates()
+            ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
     except AnalysisException:
         print(f"No .csv files for [{source}].")
         df = spark.createDataFrame(spark.sparkContext.emptyRDD(), schema)
@@ -556,15 +556,16 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
     # APPLY CHI-SQUARE SELECTOR
     name = f"ChiSquareSelectorModel_{i}"
     selector_model_path = Path(spark_artefacts_dir).joinpath(name)
-    if run_mode == 'first':
 
-        feature_cols = []
-        if i == 1:
-            feature_cols = ML1_COLUMNS
-        elif i == 2:
-            feature_cols = ML2_NUMERICAL_COLUMNS
-        elif i == 3:
-            feature_cols = ML3_COLUMNS
+    feature_cols = []
+    if i == 1:
+        feature_cols = ML1_COLUMNS
+    elif i == 2:
+        feature_cols = ML2_NUMERICAL_COLUMNS
+    elif i == 3:
+        feature_cols = ML3_COLUMNS
+
+    if run_mode == 'first':
 
         # ChiSq Test to obtain ChiSquare values (higher -> more dependence between feature and lable -> better)
         r = ChiSquareTest.test(ml_df, "features", "label")
@@ -596,7 +597,6 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
         for j in selector_model.selectedFeatures:
             top_10_features.append(feature_cols[j])
 
-
     ml_df_10 = selector_model.transform(ml_df)
     ml_df_10 = ml_df_10.drop("features")
 
@@ -626,8 +626,14 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, top_10_columns):
     if run_mode == "first":
 
         train,test = ml_df.randomSplit([0.7, 0.3])
-        train.persist()
         test.persist()
+
+        replication_factor = 10
+        negative_label_train = train.filter("label = 1.0")
+        for i in range(replication_factor):
+            train = train.union(negative_label_train)
+        
+        train.persist()
 
         train_count = train.count()
         print("Training Dataset Count: " + str(train_count))
@@ -849,7 +855,7 @@ def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
         # New sonar ~ db jenkins
         df2 = prepare_data_ml2(db_jenkins_builds, new_sonar_issues, db_sonar_analyses)
 
-        df = df1.union(df2).drop_duplicates()
+        df = df1.union(df2)
     
     df.persist()
     print(f"DF for ML2 Count: {str(df.count())}")
@@ -954,7 +960,7 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
         ml_df1 = prepre_data_ml3(new_jenkins_builds, db_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
         ml_df2 = prepre_data_ml3(db_jenkins_builds, new_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
 
-        ml_df = ml_df1.union(ml_df2).drop_duplicates()
+        ml_df = ml_df1.union(ml_df2)
 
     rules = pipeline_model.stages[0].labels
     global ML3_COLUMNS
@@ -970,14 +976,22 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
 
 def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_mode):
 
+    write_data = True
+    if run_mode == 'update_models':
+        run_mode = "first"
+        write_data = False
+
     # Check for resources that enable incremental run
     if run_mode == "incremental":
-        for i in ['1','2']:
-            for obj in [f"pipeline_{i}",f"LogisticRegressionModel_{i}",f"DecisionTreeModel_{i}",f"RandomForestModel_{i}"]:
-                obj_path = Path(spark_artefacts_dir).joinpath(obj)
-                if not obj_path.exists():
-                    print(f"{obj} does not exist in spark_artefacts. Rerun with run_mode = first")
-                    run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+        for i in ['1','2','3']:
+            for suffix in ["", "_top_10"]:
+                for obj in [f"pipeline_{i}",f"LogisticRegressionModel_{i}{suffix}",f"DecisionTreeModel_{i}{suffix}",f"RandomForestModel_{i}{suffix}", 
+                        f"ChiSquareSelectorModel_{i}", "label_indexer_3"]:
+
+                    obj_path = Path(spark_artefacts_dir).joinpath(obj)
+                    if not obj_path.exists():
+                        print(f"{obj} does not exist in spark_artefacts. Rerun with run_mode = first")
+                        run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
 
         # Data from db
         try:
@@ -1022,12 +1036,14 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     new_sonar_issues.persist()
     print("Sonar issues Count: ", new_sonar_issues.count())
 
-    # WRITE TO POSTGRESQL
-    write_mode = "overwrite" if run_mode == "first" else "append"
-    new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
-    new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+    if write_data:
+        # WRITE TO POSTGRESQL
+        write_mode = "overwrite" if run_mode == "first" else "append"
+        new_jenkins_builds.write.jdbc(CONNECTION_STR, table="jenkins_builds", mode = write_mode, properties=CONNECTION_PROPERTIES)
+        new_sonar_measures.write.jdbc(CONNECTION_STR, table="sonar_measures", mode = write_mode, properties=CONNECTION_PROPERTIES)
+        new_sonar_analyses.write.jdbc(CONNECTION_STR, table="sonar_analyses", mode = write_mode, properties=CONNECTION_PROPERTIES)
+        new_sonar_issues.write.jdbc(CONNECTION_STR, table="sonar_issues", mode = write_mode, properties=CONNECTION_PROPERTIES)
+        
 
     # APPLY MACHINE LEARNING
     apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sonar_measures, new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode)
@@ -1040,7 +1056,9 @@ if __name__ == "__main__":
     sonar_data_directory = "./sonarcloud_data/data"
     spark_artefacts_dir = "./spark_artefacts"
 
-    mode = "first"
+    # modes = ["first", "incremental", "update_models"]
+
+    mode = "update_models"
     then = time.time()
     print(f"Start Spark processing - mode: {mode.upper()}")
 
