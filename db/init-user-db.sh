@@ -155,6 +155,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		accuracy FLOAT,
 		area_under_ROC FLOAT,
 		area_under_PR FLOAT,
+		predicted_negative_rate FLOAT,
 		processed_date DATE DEFAULT CURRENT_DATE 
 	);
 	ALTER TABLE model_performance OWNER TO pra;
@@ -168,6 +169,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		train_accuracy FLOAT,
 		train_area_under_ROC FLOAT,
 		train_area_under_PR FLOAT,
+		train_predicted_negative_rate FLOAT,
 		feature_1 VARCHAR,
 		feature_importance_1 FLOAT,
 		feature_2 VARCHAR,
