@@ -307,20 +307,13 @@ def get_all_job_names(server):
             job_names.append(name)
     return job_names
 
-def process_jobs(project_name, is_job, server, first_load, output_dir_str ='./data', build_only = False):
+def process_jobs(name, is_job, server, first_load, output_dir_str ='./data', build_only = False):
 
-    for job_info, latest_build_on_file in get_jobs_info(project_name, server, is_job, output_dir_str= output_dir_str):
+    for job_info, latest_build_on_file in get_jobs_info(name, server, is_job, output_dir_str= output_dir_str):
 
         latest_build_on_file = -1 if latest_build_on_file is None else latest_build_on_file
         fullName = job_info['fullName']
         print(f"\tJob: {fullName}")
-
-        # # 'scm' field checking
-        # if 'scm' in job_info and '_class' in job_info['scm']:
-        #     scm_class = job_info['scm']['_class'].split('.')[-1]
-        #     if scm_class in ['SubversionSCM','NullSCM']:
-        #         print(f"SCM Class: {scm_class}")
-        #         continue
 
         builds = []
         #get builds info:
@@ -385,7 +378,6 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
 
-    ap.add_argument("-f","--format", choices=['csv', 'parquet'], default='csv', help="Output file format, either csv or parquet")
     ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
     ap.add_argument("-p","--projects", help = "Path to a file containing names of all projects to load, if not provided, load data from all jobs available on the server.")
