@@ -626,15 +626,19 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, top_10_columns):
     if run_mode == "first":
 
         train,test = ml_df.randomSplit([0.7, 0.3])
+        train.persist()
         test.persist()
 
         replication_factor = 10
         negative_label_train = train.filter("label = 1.0")
+        negative_label_train.persist()
+        negative_label_train.collect()
+
         for i in range(replication_factor):
             train = train.union(negative_label_train)
-        
+            train.persist()
+            
         train.persist()
-
         train_count = train.count()
         print("Training Dataset Count: " + str(train_count))
         test_count = test.count()
@@ -805,9 +809,11 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
     print(f"DF for ML1 Count: {str(df.count())}")
 
     ml_df, pipeline_model = pipeline_process(df, spark_artefacts_dir, run_mode, 1)
+    ml_df.persist()
     global ML1_COLUMNS
     ML1_COLUMNS = get_categorical_columns(pipeline_model.stages[2].categorySizes) + ML1_NUMERICAL_COLUMNS
     ml_df_10, ml_10_columns = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 1)
+    ml_df_10.persist()
 
     train_predict(ml_df, spark_artefacts_dir, run_mode, 1, None)
     train_predict(ml_df_10, spark_artefacts_dir, run_mode, 1, ml_10_columns)
@@ -861,7 +867,9 @@ def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
     print(f"DF for ML2 Count: {str(df.count())}")
 
     ml_df,_ = pipeline_process(df, spark_artefacts_dir, run_mode, 2)
+    ml_df.persist()
     ml_df_10, ml_10_columns = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 2)
+    ml_df_10.persist()
 
     train_predict(ml_df, spark_artefacts_dir, run_mode, 2, None)
     train_predict(ml_df_10, spark_artefacts_dir, run_mode, 2, ml_10_columns)
@@ -970,6 +978,7 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
     print(f"DF for ML3 Count: {ml_df.count()}")
 
     ml_df_10, ml_10_columns = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 3)
+    ml_df_10.persist()
 
     train_predict(ml_df, spark_artefacts_dir, run_mode, 3, None)
     train_predict(ml_df_10, spark_artefacts_dir, run_mode, 3, ml_10_columns)
@@ -1058,9 +1067,10 @@ if __name__ == "__main__":
 
     # modes = ["first", "incremental", "update_models"]
 
-    mode = "update_models"
+    mode = "first"
     then = time.time()
-    print(f"Start Spark processing - mode: {mode.upper()}")
+
+    print(f"Start Spark processing - mode [{mode.upper()}]")
 
     run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, mode)
 
