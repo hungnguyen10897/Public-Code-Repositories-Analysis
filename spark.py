@@ -473,7 +473,7 @@ def get_data_from_file(source ,data_directory, load):
     except AnalysisException:
         print(f"No .csv files for [{source}].")
         df = spark.createDataFrame(spark.sparkContext.emptyRDD(), schema)
-    return df
+    return df.drop_duplicates()
 
 def get_ml1_pipeline():
     stages = []
@@ -1010,6 +1010,7 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
             db_sonar_issues = spark.read.jdbc(CONNECTION_STR, "sonar_issues", properties=CONNECTION_PROPERTIES) 
 
             for table,name in [(db_jenkins_builds,"jenkins_builds"), (db_sonar_analyses, "sonar_analyses"), (db_sonar_measures, "sonar_measures"), (db_sonar_issues, "sonar_issues")]:
+                table.persist()
                 if table.count() == 0:
                     print(f"No data in table [{name}]. Rerun with run_mode = first")
                     run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
@@ -1045,6 +1046,12 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
     new_sonar_issues.persist()
     print("Sonar issues Count: ", new_sonar_issues.count())
 
+    # UPDATE DB_ DF
+    db_jenkins_builds = None if db_jenkins_builds is None else db_jenkins_builds.union(new_jenkins_builds)
+    db_sonar_analyses = None if db_sonar_analyses is None else db_sonar_analyses.union(new_sonar_analyses)
+    db_sonar_measures = None if db_sonar_measures is None else db_sonar_measures.union(new_sonar_measures)
+    db_sonar_issues = None if db_sonar_issues is None else db_sonar_issues.union(new_sonar_issues)
+
     if write_data:
         # WRITE TO POSTGRESQL
         write_mode = "overwrite" if run_mode == "first" else "append"
@@ -1067,7 +1074,7 @@ if __name__ == "__main__":
 
     # modes = ["first", "incremental", "update_models"]
 
-    mode = "first"
+    mode = "incremental"
     then = time.time()
 
     print(f"Start Spark processing - mode [{mode.upper()}]")
