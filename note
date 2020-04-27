@@ -22,9 +22,12 @@ $ docker-compose up
 - Implement parquet file format for jenkins
 
 ## Airflow
+- To start airflow
 $ airflow initdb
 $ airflow scheduler
 $ airflow webserver
+- Create a hard link between from platform_dag.py to a link in dag folder of Airflow
+$ ln ./platform_dag.py $AIRFLOW_HOME/dags/
 
 ## Spark and ML
 - Add

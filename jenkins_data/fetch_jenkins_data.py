@@ -328,6 +328,7 @@ def process_jobs(name, is_job, server, first_load, output_dir_str ='./data', bui
                 print(f"JenkinsException: {e}")
 
         builds_data, tests_data = get_data(builds, fullName, server, build_only)
+        print(f"{len(builds_data)} new builds.")
 
         df_builds = None
         if builds_data != []:
@@ -340,7 +341,7 @@ def process_jobs(name, is_job, server, first_load, output_dir_str ='./data', bui
                 "test_pass_count" : "Int64",
                 "test_fail_count" : "Int64",
                 "test_skip_count" : "Int64"})
-
+    
         df_tests = None    
         if tests_data != []:
             df_tests = pd.DataFrame(data = tests_data, columns=list(JENKINS_TEST_DTYPE.keys()))

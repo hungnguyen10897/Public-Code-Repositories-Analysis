@@ -572,8 +572,6 @@ def feature_selector_process(ml_df, spark_artefacts_dir, run_mode, i):
         pValues = r.select("pvalues").collect()[0][0].tolist()
         stats = r.select("statistics").collect()[0][0].tolist()
         dof = r.select("degreesOfFreedom").collect()[0][0]
-        # df = pd.DataFrame({"pvalues": pValues, "dof" : dof, "stats" : stats ,'name': ML3_COLUMNS}, columns = ['pvalues', 'dof', 'stats', 'name'])
-        # df_sorted = df.sort_values(by = "stats", ascending = False)
 
         # ChiSq Selector
         selector =ChiSqSelector(numTopFeatures= 10, featuresCol="features", outputCol="selected_features", labelCol="label")
@@ -713,11 +711,13 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, top_10_columns):
                 print(f"\tTrain-{metricName}: {train_measure}")
 
             # Predicted negatives
-            predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / predictions.select("label").filter("label = 1.0").count()
+            predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() \
+                / predictions.select("label").filter("label = 1.0").count()
             print(f"\tpredicted_negative_rate: {predicted_negative_rate}")
             measures.append(predicted_negative_rate)
 
-            train_predicted_negative_rate = train_predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / train_predictions.select("label").filter("label = 1.0").count()
+            train_predicted_negative_rate = train_predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() \
+                / train_predictions.select("label").filter("label = 1.0").count()
             print(f"\ttrain_predicted_negative_rate: {train_predicted_negative_rate}")
             train_measures.append(train_predicted_negative_rate)
             
