@@ -41,12 +41,8 @@ t1_sonar = PythonOperator(
 t2 = BashOperator(
     task_id = "spark_processing",
     dag = dag,
-    depends_on_past = False,
     bash_command = f"cd {repo_dir} && spark-submit --driver-class-path postgresql-42.2.12.jar spark.py"
 )
-
-t1_jenkins >> t2
-t1_sonar >> t2
 
 t3 = PythonOperator(
     task_id = "merge_stage_archive",
@@ -56,5 +52,7 @@ t3 = PythonOperator(
     dag = dag
 )
 
+t1_jenkins >> t2
+t1_sonar >> t2
 t2 >> t3
 
