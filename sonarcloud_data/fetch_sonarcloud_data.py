@@ -7,6 +7,7 @@ import pandas as pd
 from collections import OrderedDict
 import argparse
 import numpy as np
+import os
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
@@ -248,7 +249,9 @@ def process_datetime(time_str):
 
 def load_metrics(path = None):
     if path is None:
-        path = './metrics.txt'
+        current_file_path = os.path.realpath(__file__)
+        parent_path = '/'.join(current_file_path.split("/")[:-1])
+        path = f'{parent_path}/metrics.txt'
     p = Path(path)
     if not p.exists():
         print(f"ERROR: Path for metrics {p.resolve()} does not exists.")

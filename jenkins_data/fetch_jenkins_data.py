@@ -328,7 +328,7 @@ def process_jobs(name, is_job, server, first_load, output_dir_str ='./data', bui
                 print(f"JenkinsException: {e}")
 
         builds_data, tests_data = get_data(builds, fullName, server, build_only)
-        print(f"{len(builds_data)} new builds.")
+        print(f"\t\t{len(builds_data)} new builds.")
 
         df_builds = None
         if builds_data != []:
