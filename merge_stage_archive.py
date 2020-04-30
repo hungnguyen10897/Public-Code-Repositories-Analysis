@@ -184,6 +184,9 @@ def merge(file_directory, DTYPE):
 
 def main(jenkins_data_dir, sonar_data_dir):
 
+    jenkins_data_dir = Path(jenkins_data_dir)
+    sonar_data_dir = Path(sonar_data_dir)
+
     jenkins_builds_dir = jenkins_data_dir.joinpath("builds")
     if not jenkins_builds_dir.exists():
         print(f"ERROR: Jenkins builds data directory does not exsists - {jenkins_builds_dir.resolve()}")
@@ -211,7 +214,4 @@ if __name__ == "__main__":
 
     args = vars(ap.parse_args())
 
-    jenkins_data_dir = Path(args['jenkins'])
-    sonar_data_dir = Path(args['sonar'])
-
-    main(jenkins_data_dir, sonar_data_dir)
+    main(args['jenkins'], args['sonar'])
