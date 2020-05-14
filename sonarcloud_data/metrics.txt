@@ -1,0 +1,104 @@
+26 - Complexity - complexity - INT - Cyclomatic complexity
+27 - Complexity - class_complexity - FLOAT - Complexity average by class
+28 - Complexity - function_complexity - FLOAT - Complexity average by function
+38 - Complexity - file_complexity - FLOAT - Complexity average by file
+59 - Complexity - function_complexity_distribution - DISTRIB - Functions distribution /complexity
+154 - Complexity - file_complexity_distribution - DISTRIB - Files distribution /complexity
+272 - Complexity - complexity_in_classes - INT - Cyclomatic complexity in classes
+273 - Complexity - complexity_in_functions - INT - Cyclomatic complexity in functions
+347 - Complexity - cognitive_complexity - INT - Cognitive complexity
+10 - Coverage - test_errors - INT - Number of unit test errors
+11 - Coverage - skipped_tests - INT - Number of skipped unit tests
+12 - Coverage - test_failures - INT - Number of unit test failures
+13 - Coverage - tests - INT - Number of unit tests
+14 - Coverage - test_execution_time - MILLISEC - Execution duration of unit tests
+15 - Coverage - test_success_density - PERCENT - Density of successful unit tests
+20 - Coverage - coverage - PERCENT - Coverage by tests
+92 - Coverage - lines_to_cover - INT - Lines to cover
+93 - Coverage - uncovered_lines - INT - Uncovered lines
+94 - Coverage - line_coverage - PERCENT - Line coverage
+95 - Coverage - conditions_to_cover - INT - Conditions to cover
+96 - Coverage - uncovered_conditions - INT - Uncovered conditions
+97 - Coverage - branch_coverage - PERCENT - Condition coverage
+172 - Coverage - new_coverage - PERCENT - Coverage of new/changed code
+173 - Coverage - new_lines_to_cover - INT - Lines to cover on new code
+174 - Coverage - new_uncovered_lines - INT - Uncovered lines on new code
+175 - Coverage - new_line_coverage - PERCENT - Line coverage of added/changed code
+176 - Coverage - new_conditions_to_cover - INT - Conditions to cover on new code
+177 - Coverage - new_uncovered_conditions - INT - Uncovered conditions on new code
+178 - Coverage - new_branch_coverage - PERCENT - Condition coverage of new/changed code
+321 - Coverage - executable_lines_data - DATA - No Description
+58 - Documentation - public_api - INT - Public API
+61 - Documentation - public_documented_api_density - PERCENT - Public documented classes and functions balanced by ncloc
+62 - Documentation - public_undocumented_api - INT - Public undocumented classes, functions and variables
+8 - Duplications - duplicated_lines - INT - Duplicated lines
+34 - Duplications - duplicated_lines_density - PERCENT - Duplicated lines balanced by statements
+51 - Duplications - duplicated_blocks - INT - Duplicated blocks
+52 - Duplications - duplicated_files - INT - Duplicated files
+53 - Duplications - duplications_data - DATA - Duplications details
+338 - Duplications - new_duplicated_lines - INT - Duplicated Lines on New Code
+339 - Duplications - new_duplicated_blocks - INT - Duplicated blocks on new code
+340 - Duplications - new_duplicated_lines_density - PERCENT - Duplicated lines on new code balanced by statements
+47 - General - quality_profiles - DATA - Details of quality profiles used during analysis
+294 - General - quality_gate_details - DATA - The project detailed status with regard to its quality gate
+42 - Issues - violations - INT - Issues
+78 - Issues - blocker_violations - INT - Blocker issues
+79 - Issues - critical_violations - INT - Critical issues
+80 - Issues - major_violations - INT - Major issues
+81 - Issues - minor_violations - INT - Minor issues
+82 - Issues - info_violations - INT - Info issues
+164 - Issues - new_violations - INT - New issues
+165 - Issues - new_blocker_violations - INT - New Blocker issues
+166 - Issues - new_critical_violations - INT - New Critical issues
+167 - Issues - new_major_violations - INT - New Major issues
+168 - Issues - new_minor_violations - INT - New Minor issues
+169 - Issues - new_info_violations - INT - New Info issues
+274 - Issues - false_positive_issues - INT - False positive issues
+275 - Issues - open_issues - INT - Open issues
+276 - Issues - reopened_issues - INT - Reopened issues
+277 - Issues - confirmed_issues - INT - Confirmed issues
+324 - Issues - wont_fix_issues - INT - Won't fix issues
+162 - Maintainability - sqale_index - WORK_DUR - Total effort (in hours) to fix all the issues on the component and therefore to comply to all the requirements.
+163 - Maintainability - sqale_rating - RATING - A-to-E rating based on the technical debt ratio
+280 - Maintainability - development_cost - FLOAT - Development cost
+289 - Maintainability - new_technical_debt - WORK_DUR - Added technical debt
+297 - Maintainability - sqale_debt_ratio - PERCENT - Ratio of the actual technical debt compared to the estimated cost to develop the whole source code from scratch
+304 - Maintainability - new_sqale_debt_ratio - PERCENT - Technical Debt Ratio of new/changed code.
+306 - Maintainability - code_smells - INT - Code Smells
+307 - Maintainability - new_code_smells - INT - New Code Smells
+312 - Maintainability - effort_to_reach_maintainability_rating_a - WORK_DUR - Effort to reach maintainability rating A
+341 - Maintainability - new_maintainability_rating - RATING - Maintainability rating on new code
+348 - Maintainability - new_development_cost - FLOAT - Development cost on new code
+48 - Releasability - alert_status - LEVEL - The project status with regard to its quality gate.
+308 - Reliability - bugs - INT - Bugs
+309 - Reliability - new_bugs - INT - New Bugs
+313 - Reliability - reliability_remediation_effort - WORK_DUR - Reliability Remediation Effort
+314 - Reliability - new_reliability_remediation_effort - WORK_DUR - Reliability remediation effort on new code
+315 - Reliability - reliability_rating - RATING - Reliability rating
+342 - Reliability - new_reliability_rating - RATING - Reliability rating on new code
+181 - SCM - last_commit_date - MILLISEC - No Description
+310 - Security - vulnerabilities - INT - Vulnerabilities
+311 - Security - new_vulnerabilities - INT - New Vulnerabilities
+317 - Security - security_remediation_effort - WORK_DUR - Security remediation effort
+318 - Security - new_security_remediation_effort - WORK_DUR - Security remediation effort on new code
+319 - Security - security_rating - RATING - Security rating
+343 - Security - new_security_rating - RATING - Security rating on new code
+350 - Security - security_hotspots - INT - Security Hotspots
+351 - Security - new_security_hotspots - INT - New Security Hotspots
+352 - Security - security_review_rating - RATING - Security Review Rating
+4 - Size - classes - INT - Classes
+5 - Size - ncloc - INT - Non commenting lines of code
+6 - Size - functions - INT - Functions
+32 - Size - comment_lines - INT - Number of comment lines
+33 - Size - comment_lines_density - PERCENT - Comments balanced by ncloc + comment lines
+36 - Size - files - INT - Number of files
+37 - Size - directories - INT - Directories
+55 - Size - lines - INT - Lines
+60 - Size - statements - INT - Number of statements
+150 - Size - generated_lines - INT - Number of generated lines
+151 - Size - generated_ncloc - INT - Generated non Commenting Lines of Code
+238 - Size - ncloc_data - DATA - No Description
+239 - Size - comment_lines_data - DATA - No Description
+240 - Size - projects - INT - Number of projects
+293 - Size - ncloc_language_distribution - DATA - Non Commenting Lines of Code Distributed By Language
+337 - Size - new_lines - INT - New lines
