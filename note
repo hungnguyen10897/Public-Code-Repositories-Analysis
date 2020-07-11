@@ -5,8 +5,8 @@ pyspark --conf spark.executor.extraClassPath=sqlite-jdbc-3.30.1.jar --driver-cla
 
 ## PostgreSQL
 - Starting Postgres in directory 'db'
-- The script init-user-db.sh is only run the first time (i.e folder/volume db_home does not exist) the image is initialized.
-- To apply changes in init-user-db.sh, remove the bind mount as well as the service's container, image
+- The script init-user-db.sh (database definition) is only run the first time (i.e folder/volume db_home does not exist) the image is initialized.
+- To apply changes in init-user-db.sh (e.g changing schema),, remove the bind mount as well as the service's container and image. reset_db.sh automatically achieves this, but will remove all existing.
 $ docker network create PRA_net
 $ docker-compose up
 
