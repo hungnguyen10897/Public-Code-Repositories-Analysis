@@ -3,19 +3,19 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 
 import sys
-repo_dir = "/home/hung/MyWorksapce/BachelorThesis/repo"
+repo_dir = "/home/hung/pra"
 sys.path.append(repo_dir)
 
 from jenkins_data.fetch_jenkins_data import fetch_jenkins
 from sonarcloud_data.fetch_sonarcloud_data import fetch_sonar_data
 from merge_stage_archive import main
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 default_args = {
     'owner': 'hung',
     'depends_on_past': False,
-    'start_date': datetime(2020, 4, 8),
+    'start_date': datetime.combine(date.today(), datetime.min.time()),
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }

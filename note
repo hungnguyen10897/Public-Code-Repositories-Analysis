@@ -24,8 +24,11 @@ $ docker-compose up
 ## Airflow
 - To start airflow
 $ airflow initdb
-$ airflow scheduler
-$ airflow webserver
+$ airflow scheduler -D
+$ airflow webserver -D  		//can be skipped
+$ airflow trigger_dag platform
+$ airflow unpause platform
+- Change the repo_dir variable in platform_dag.py to the local absolute path to the project
 - Create a hard link between from platform_dag.py to a link in dag folder of Airflow
 $ ln ./platform_dag.py $AIRFLOW_HOME/dags/
 
