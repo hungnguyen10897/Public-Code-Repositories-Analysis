@@ -263,7 +263,7 @@ def get_jobs_info(name, server, is_job, output_dir_str):
                 jobs_info += get_jobs_info(fullName, server, True, output_dir_str= output_dir_str)
 
         else:
-            num_builds = len(job_info['builds'])          # 0 <= num_builds <= 100
+            num_builds = 0 if 'builds' not in job_info else len(job_info['builds'])          # 0 <= num_builds <= 100
             if num_builds == 0:
                 continue
 
