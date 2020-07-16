@@ -5,8 +5,8 @@ def process(file_directory):
     if not file_directory.exists():
         return
 
-    for file in file_directory.glob("*_staging.csv"):
-        archive_file = Path(str(file).replace("_staging", ""))
+    for file in file_directory.glob("*builds.csv"):
+        archive_file = Path(str(file).replace("builds.csv", "builds_staging.csv"))
         file.rename(archive_file)
 
 if __name__ == "__main__":
