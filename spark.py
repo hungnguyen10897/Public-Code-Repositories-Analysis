@@ -524,7 +524,7 @@ def get_ml2_pipeline():
 def get_ml3_pipeline():
 
     stages = []
-    str_idx = StringIndexer(inputCol="rule", outputCol="rule_idx", handleInvalid="keep")
+    str_idx = StringIndexer(inputCol="rule", outputCol="rule_idx", handleInvalid="skip")
     ohe = OneHotEncoderEstimator(inputCols=["rule_idx"], outputCols=["rule_vec"], dropLast=False)
     stages = [str_idx, ohe]
     return Pipeline(stages= stages)
