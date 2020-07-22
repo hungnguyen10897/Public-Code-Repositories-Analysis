@@ -10,5 +10,9 @@ def process(file_directory):
         file.rename(archive_file)
 
 if __name__ == "__main__":
-    directory = Path("./data/builds")
-    process(directory)
+    analyses_directory = Path("./data/analyses")
+    process(analyses_directory)
+    issues_directory = Path("./data/issues")
+    process(issues_directory)
+    measures_directory = Path("./data/measures")
+    process(measures_directory)
