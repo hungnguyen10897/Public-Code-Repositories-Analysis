@@ -3,7 +3,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 
 import sys
-repo_dir = "/home/hung/pra"
+repo_dir = "/mnt/pra"
 sys.path.append(repo_dir)
 
 from jenkins_data.fetch_jenkins_data import fetch_jenkins
