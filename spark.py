@@ -524,7 +524,7 @@ def get_ml2_pipeline():
 def get_ml3_pipeline():
 
     stages = []
-    str_idx = StringIndexer(inputCol="rule", outputCol="rule_idx")
+    str_idx = StringIndexer(inputCol="rule", outputCol="rule_idx", handleInvalid="keep")
     ohe = OneHotEncoderEstimator(inputCols=["rule_idx"], outputCols=["rule_vec"], dropLast=False)
     stages = [str_idx, ohe]
     return Pipeline(stages= stages)
@@ -955,7 +955,7 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
         pipeline_model = get_ml3_pipeline().fit(new_sonar_issues)
         pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
 
-        label_idx_model = StringIndexer(inputCol="result", outputCol="label").fit(new_jenkins_builds)
+        label_idx_model = StringIndexer(inputCol="result", outputCol="label", handleInvalid="keep").fit(new_jenkins_builds)
         label_idx_model.write().overwrite().save(str(label_idx_model_path.absolute()))
 
         ml_df = prepre_data_ml3(new_jenkins_builds, new_sonar_issues, new_sonar_analyses, pipeline_model, label_idx_model)
