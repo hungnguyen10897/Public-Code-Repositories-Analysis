@@ -26,11 +26,27 @@ $ docker-compose up
 $ airflow initdb
 $ airflow scheduler -D
 $ airflow webserver -D  		//can be skipped
-$ airflow trigger_dag platform
-$ airflow unpause platform
+
 - Change the repo_dir variable in platform_dag.py to the local absolute path to the project
+- Change the start_date argument to the current date
+
 - Create a hard link between from platform_dag.py to a link in dag folder of Airflow
 $ ln ./platform_dag.py $AIRFLOW_HOME/dags/
+
+- Start the dag
+$ airflow trigger_dag platform
+$ airflow unpause platform
+
+- If scheduler is down (happens unexpectedly sometimes)
+- delete all airflow-schduler related files from AIRFLOW_HOME
+$ rm airflow-scheduler.*
+- Remove all airflow related processes:
+$ kill -9 `ps aux | grep airflow | awk '{print $2}'`
+$ airflow scheduler -D
+- Change the start_date argument to the current date
+$ airflow trigger_dag platform
+$ airflow unpause platform
+
 
 ## Spark and ML
 - Add
