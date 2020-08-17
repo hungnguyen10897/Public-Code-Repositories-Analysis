@@ -401,7 +401,7 @@ def process_project_measures(project, output_path, new_analyses, metrics_path = 
 
     #Create DF
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
-    df.to_csv(path_or_buf= staging_file_path, index=False, header=True)
+    df.to_csv(path_or_buf= staging_file_path, index=False, header=True,mode='a')
 
 def get_creation_analysis_key(issue_key, archive_file_path, key_date_list):
     
@@ -475,7 +475,7 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
             "debt" : "Int64"
         })
 
-        df.to_csv(file_path, index=False, header=True)
+        df.to_csv(file_path, index=False, header=True, mode='a')
 
 def process_project_analyses(project, output_path):
 
@@ -519,7 +519,7 @@ def process_project_analyses(project, output_path):
     print(f"\t\t {project_key} - {len(lines)} new analyses.")
     if lines != []:
         df = pd.DataFrame(data = lines, columns= SONAR_ANALYSES_DTYPE.keys())
-        df.to_csv(staging_file_path, index= False, header=True)
+        df.to_csv(staging_file_path, index= False, header=True, mode='a')
         return df, last_analysis_ts
     
     return None, last_analysis_ts
