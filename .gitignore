@@ -14,3 +14,6 @@ sonarcloud_data/sonar_data/
 **/test.py
 spark_artefacts
 
+env/**
+# Temporary for git module
+git/**

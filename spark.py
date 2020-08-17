@@ -6,7 +6,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.types import Row
 from pyspark.sql.utils import AnalysisException
-from pyspark.sql.functions import col, udf
+from pyspark.sql.functions import udf
 from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, StringIndexerModel, VectorAssembler, MinMaxScaler, Imputer, ChiSqSelector, ChiSqSelectorModel
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
@@ -14,6 +14,7 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator, BinaryClass
 from pyspark.ml.linalg import *
 from pyspark.ml.stat import ChiSquareTest
 import pandas as pd
+from spark_constsants import *
 
 import numpy as np
 from pathlib import Path
@@ -427,9 +428,6 @@ MODEL_INFO_SCHEMA = StructType([
     StructField("feature_importance_10", FloatType()),
 ])
 
-CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
-CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
-
 conf = SparkConf().setMaster('local[*]')
 sc = SparkContext
 spark = SparkSession.builder.config(conf = conf).getOrCreate()
@@ -529,6 +527,7 @@ def get_ml3_pipeline():
     stages = [str_idx, ohe]
     return Pipeline(stages= stages)
 
+# For ML model 1 and 2
 def pipeline_process(df, spark_artefacts_dir, run_mode, i):
 
     pipeline_path = Path(spark_artefacts_dir).joinpath(f"pipeline_{i}")
@@ -757,8 +756,14 @@ def train_predict(ml_df, spark_artefacts_dir, run_mode, i, top_10_columns):
                 print(f"\t{metricName}: {measure}")
 
             # Predicted negatives
-            predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / predictions.select("label").filter("label = 1.0").count()
-            print(f"\tpredicted_negative_rate: {predicted_negative_rate}")
+            negatives = predictions.select("label").filter("label = 1.0").count()
+            if negatives == 0:
+                print("\tNo negative labels.")
+                predicted_negative_rate = None
+            else:
+                predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / predictions.select("label").filter("label = 1.0").count()
+                print(f"\tpredicted_negative_rate: {predicted_negative_rate}")
+            
             measures.append(predicted_negative_rate)
 
             model_performance_lines.append([name, ml_df.count()] + measures) 
@@ -892,7 +897,7 @@ def sum_sparse_vectors(v1, v2):
         results = add_to_map(results, e)
     return SparseVector(v1.size, list(results.keys()), list(results.values()))
 
-def prepre_data_ml3(jenkins_builds, sonar_issues,sonar_analyses ,pipeline_model, label_idx_model):
+def prepre_data_ml3(jenkins_builds, sonar_issues, sonar_analyses ,pipeline_model, label_idx_model):
     
     removed_rules_df = sonar_issues.filter("status IN ('RESOLVED', 'CLOSED', 'REVIEWED')").select("current_analysis_key","rule")
     df1 = pipeline_model.transform(removed_rules_df)
