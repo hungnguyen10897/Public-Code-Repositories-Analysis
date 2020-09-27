@@ -366,8 +366,8 @@ def get_analysis_key(date, key_date_list):
 
         analysis_date = key_date_list[i][1]
         
-        if date > analysis_date:
-            return key_date_list[i-1][0]
+        if date >= analysis_date:
+            return key_date_list[i][0]
             
     return key_date_list[-1][0]
 
