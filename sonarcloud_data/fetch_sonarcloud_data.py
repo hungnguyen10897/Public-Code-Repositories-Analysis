@@ -358,6 +358,7 @@ def extract_measures_value(measures, metrics_order_type, columns, data):
     
     return columns, data
 
+# Get analysis key based on a date which is closest and >= analysis date
 def get_analysis_key(date, key_date_list):
 
     date = np.datetime64(date)
@@ -403,21 +404,28 @@ def process_project_measures(project, output_path, new_analyses, metrics_path = 
     df = pd.DataFrame(data_with_measures, columns= columns_with_metrics)
     df.to_csv(path_or_buf= staging_file_path, index=False, header=True,mode='a')
 
-def get_creation_analysis_key(issue_key, archive_file_path, key_date_list):
+def get_creation_analysis_key(issue_key, creation_date, issue_key_analysis_map, key_date_list):
     
+    if issue_key not in issue_key_analysis_map:
+        return get_analysis_key(creation_date, key_date_list)
+    return issue_key_analysis_map[issue_key]
+    
+# get the map: issue key -> creation analysis key
+def get_issue_key_analysis_map(archive_file_path):
+
+    m = {}
     if archive_file_path.exists():
 
         df = pd.read_csv(archive_file_path.absolute(), dtype=SONAR_ISSUES_DTYPE, parse_dates=["creation_date", "update_date" ,"close_date"])
-        issue_key_df = df[df['issue_key'] == issue_key]
-        if not issue_key_df.empty:
-            lst = issue_key_df['creation_analysis_key'].unique().tolist()
-            if len(lst) > 1:
-                print(f"ERROR: More than 1 creation_analysis_key(s) at [{issue_key}] - [{str(archive_file_path.absolute())}]")
-                sys.exit(1)
-            return lst.values[0]
+        issue_key_df = df.loc[:, ['issue_key', 'creation_analysis_key']].drop_duplicates()
+        issue_keys = issue_key_df['issue_key'].tolist()
+        creation_analysis_keys = issue_key_df['creation_analysis_key'].tolist()
+        for issue_key, creation_analysis_key in zip(issue_keys, creation_analysis_keys):
+            m[issue_key] = creation_analysis_key
+        return m
 
-    return get_analysis_key(issue_key, key_date_list)
-    
+    return {}
+
 def process_project_issues(project, output_path, new_analyses, latest_analysis_ts_on_file):
 
     project_key = project['key']
@@ -426,6 +434,7 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
     output_path.mkdir(parents=True, exist_ok=True)
     file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
     archive_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
+    issue_key_analysis_map = get_issue_key_analysis_map(archive_file_path)
 
     project_issues = query_server('issues', 1, project_key = project_key)
 
@@ -443,12 +452,12 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
             continue
         current_analysis_key = None if update_date is None else get_analysis_key(update_date, key_date_list)
 
+        issue_key = None if 'key' not in project_issue else project_issue['key']
         creation_date = None if 'creationDate' not in project_issue else process_datetime(project_issue['creationDate'])
-        creation_analysis_key = None if creation_date is None else get_creation_analysis_key(creation_date, archive_file_path, key_date_list)
+        creation_analysis_key = None if creation_date is None else get_creation_analysis_key(issue_key, creation_date, issue_key_analysis_map, key_date_list)
 
         close_date = None if 'closeDate' not in project_issue else process_datetime(project_issue['closeDate'])
 
-        issue_key = None if 'key' not in project_issue else project_issue['key']
         rule = None if 'rule' not in project_issue else project_issue['rule']
         severity = None if 'severity' not in project_issue else project_issue['severity']
         status = None if 'status' not in project_issue else project_issue['status']
@@ -531,7 +540,7 @@ def fetch_sonar_data(output_path):
 
     print(f"Total: {len(project_list)} projects.")
     i = 0
-    for project in project_list:
+    for project in project_list[:1]:
         print(f"\t{i}: ")
         i += 1
         new_analyses, latest_analysis_ts_on_file = process_project_analyses(project, output_path)

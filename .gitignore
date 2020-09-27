@@ -13,6 +13,7 @@ sonarcloud_data/agg_sonar.csv
 sonarcloud_data/sonar_data/
 **/test.py
 spark_artefacts
+.DS_Store
 
 env/**
 # Temporary for git module
