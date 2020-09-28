@@ -540,7 +540,7 @@ def fetch_sonar_data(output_path):
 
     print(f"Total: {len(project_list)} projects.")
     i = 0
-    for project in project_list[:1]:
+    for project in project_list:
         print(f"\t{i}: ")
         i += 1
         new_analyses, latest_analysis_ts_on_file = process_project_analyses(project, output_path)
