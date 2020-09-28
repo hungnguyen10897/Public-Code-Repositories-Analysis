@@ -224,14 +224,14 @@ def write_to_file(job_data, output_dir_str, build_only):
         tests_dir.mkdir(parents=True, exist_ok=True)
         output_file_tests = tests_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_tests_staging.csv")
 
-        df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True, mode='a')
+        df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True, mode='w')
 
     if df_builds is not None:
         builds_dir = output_dir.joinpath('builds')
         builds_dir.mkdir(parents=True, exist_ok=True)
         output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds_staging.csv")
 
-        df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True, mode='a')
+        df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True, mode='w')
 
 def get_jobs_info(name, server, is_job, output_dir_str):
 
