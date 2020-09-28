@@ -7,7 +7,7 @@ import pandas as pd
 from collections import OrderedDict
 import argparse
 import numpy as np
-import os
+import os, re
 
 SERVER = "https://sonarcloud.io/"
 ORGANIZATION = "apache"
@@ -145,6 +145,10 @@ SONAR_ANALYSES_DTYPE = OrderedDict({
     "project_version" : "object", 
     "revision" : "object"
 })
+
+def get_proper_file_name(origin):
+    p = re.compile("[^0-9a-z-_]")
+    return p.sub('_', origin.lower())
 
 def write_metrics_file(metric_list):
     metric_list.sort(key = lambda x: ('None' if 'domain' not in x else x['domain'], int(x['id'])))
@@ -378,7 +382,7 @@ def process_project_measures(project, output_path, new_analyses, metrics_path = 
 
     output_path = Path(output_path).joinpath("measures")
     output_path.mkdir(parents=True, exist_ok=True)
-    staging_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
+    staging_file_path = output_path.joinpath(f"{get_proper_file_name(project_key)}_staging.csv")
 
     min_ts_str = new_analyses['date'].min().strftime(format = '%Y-%m-%d')
 
@@ -432,8 +436,8 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
 
     output_path = Path(output_path).joinpath("issues")
     output_path.mkdir(parents=True, exist_ok=True)
-    file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
-    archive_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
+    file_path = output_path.joinpath(f"{get_proper_file_name(project_key)}_staging.csv")
+    archive_file_path = output_path.joinpath(f"{get_proper_file_name(project_key)}.csv")
     issue_key_analysis_map = get_issue_key_analysis_map(archive_file_path)
 
     project_issues = query_server('issues', 1, project_key = project_key)
@@ -492,8 +496,8 @@ def process_project_analyses(project, output_path):
 
     output_path = Path(output_path).joinpath("analyses")
     output_path.mkdir(parents=True, exist_ok=True)
-    staging_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}_staging.csv")
-    archive_file_path = output_path.joinpath(f"{project_key.replace(' ','_').replace(':','_')}.csv")
+    staging_file_path = output_path.joinpath(f"{get_proper_file_name(project_key)}_staging.csv")
+    archive_file_path = output_path.joinpath(f"{get_proper_file_name(project_key)}.csv")
 
     last_analysis_ts = None
     if archive_file_path.exists():

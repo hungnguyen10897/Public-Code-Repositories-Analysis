@@ -34,6 +34,10 @@ JENKINS_TEST_DTYPE = OrderedDict({
     "duration" : "float64",
     "status" : "object"})
 
+def get_proper_file_name(origin):
+    p = re.compile("[^0-9a-z-_]")
+    return p.sub('_', origin.lower())
+
 def get_projects(path):
     p = Path(path)
     projects = []
@@ -222,14 +226,14 @@ def write_to_file(job_data, output_dir_str, build_only):
     if not build_only and df_tests is not None:
         tests_dir = output_dir.joinpath('tests')
         tests_dir.mkdir(parents=True, exist_ok=True)
-        output_file_tests = tests_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_tests_staging.csv")
+        output_file_tests = tests_dir.joinpath(f"{get_proper_file_name(job_name)}_tests_staging.csv")
 
         df_tests.to_csv(path_or_buf = output_file_tests, index=False, header=True, mode='w')
 
     if df_builds is not None:
         builds_dir = output_dir.joinpath('builds')
         builds_dir.mkdir(parents=True, exist_ok=True)
-        output_file_builds = builds_dir.joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds_staging.csv")
+        output_file_builds = builds_dir.joinpath(f"{get_proper_file_name(job_name)}_builds_staging.csv")
 
         df_builds.to_csv(path_or_buf = output_file_builds, index=False, header = True, mode='w')
 
@@ -270,7 +274,7 @@ def get_jobs_info(name, server, is_job, output_dir_str):
             diff = None
             # Get latest build on file
             df = None
-            p = Path(output_dir_str).joinpath("builds").joinpath(f"{job_name.lower().replace(' ', '_').replace('/','_')}_builds.csv")
+            p = Path(output_dir_str).joinpath("builds").joinpath(f"{get_proper_file_name(job_name)}_builds.csv")
             if p.exists():
                 df = pd.read_csv(p.resolve(), dtype=JENKINS_BUILD_DTYPE, parse_dates=['commit_ts'], header=0)
 
