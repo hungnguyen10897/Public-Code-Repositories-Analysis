@@ -14,13 +14,15 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator, BinaryClass
 from pyspark.ml.linalg import *
 from pyspark.ml.stat import ChiSquareTest
 import pandas as pd
-from spark_constsants import *
 
 import numpy as np
 from pathlib import Path
 from collections import OrderedDict
 import time
 import sys
+
+CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
+CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
 
 JENKINS_BUILD_DTYPE = OrderedDict({
     "job" : "object",
