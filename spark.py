@@ -814,6 +814,9 @@ def apply_ml1(new_jenkins_builds, db_jenkins_builds, new_sonar_measures, db_sona
 
     df.persist()  
     print(f"DF for ML1 Count: {str(df.count())}")
+    if df.count() == 0:
+        print("No data for ML1 - Returning...")
+        return
 
     ml_df, pipeline_model = pipeline_process(df, spark_artefacts_dir, run_mode, 1)
     ml_df.persist()
@@ -872,6 +875,9 @@ def apply_ml2(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
     
     df.persist()
     print(f"DF for ML2 Count: {str(df.count())}")
+    if df.count() == 0:
+        print("No data for ML2 - Returning...")
+        return
 
     ml_df,_ = pipeline_process(df, spark_artefacts_dir, run_mode, 2)
     ml_df.persist()
@@ -905,12 +911,16 @@ def prepre_data_ml3(jenkins_builds, sonar_issues, sonar_analyses ,pipeline_model
     df1 = pipeline_model.transform(removed_rules_df)
     rdd1 = df1.rdd.map(lambda x : (x[0],x[3])).reduceByKey(lambda v1,v2: sum_sparse_vectors(v1,v2)) \
                                                 .map(lambda x: Row(current_analysis_key = x[0], removed_rule_vec = x[1]))
+    if rdd1.count() == 0:
+        return None
     removed_issues_rule_vec_df = spark.createDataFrame(rdd1)
 
     introduced_rules_df = sonar_issues.filter("status IN ('OPEN', 'REOPENED', 'CONFIRMED', 'TO_REVIEW')").select("creation_analysis_key","rule")
     df2 = pipeline_model.transform(introduced_rules_df)
     rdd2 = df2.rdd.map(lambda x : (x[0],x[3])).reduceByKey(lambda v1,v2: sum_sparse_vectors(v1,v2)) \
                                                 .map(lambda x: Row(creation_analysis_key = x[0], introduced_rule_vec = x[1]))
+    if rdd.count() == 0:
+        return None                                                
     introduced_issues_rule_vec_df = spark.createDataFrame(rdd2)
 
     joined_sonar_rules_df = removed_issues_rule_vec_df.join(introduced_issues_rule_vec_df, 
@@ -966,6 +976,9 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
         label_idx_model.write().overwrite().save(str(label_idx_model_path.absolute()))
 
         ml_df = prepre_data_ml3(new_jenkins_builds, new_sonar_issues, new_sonar_analyses, pipeline_model, label_idx_model)
+        if ml_df is None:
+            print("No data for ML3 - Returning...")
+            return
 
     elif run_mode == "incremental":
         
@@ -974,6 +987,9 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
 
         ml_df1 = prepre_data_ml3(new_jenkins_builds, db_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
         ml_df2 = prepre_data_ml3(db_jenkins_builds, new_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
+        if ml_df1 is None or ml_df2 is None:
+            print("No data for ML3 - Returning...")
+            return
 
         ml_df = ml_df1.union(ml_df2)
 
@@ -983,6 +999,9 @@ def apply_ml3(new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_
 
     ml_df.persist()
     print(f"DF for ML3 Count: {ml_df.count()}")
+    if ml_df.count() == 0:
+        print("No data for ML3 - Returning...")
+        return
 
     ml_df_10, ml_10_columns = feature_selector_process(ml_df, spark_artefacts_dir, run_mode, 3)
     ml_df_10.persist()
@@ -1008,6 +1027,7 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
                     if not obj_path.exists():
                         print(f"{obj} does not exist in spark_artefacts. Rerun with run_mode = first")
                         run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+                        return
 
         # Data from db
         try:
@@ -1025,6 +1045,7 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
         except Exception as e:
             print(f"Exception thrown when reading tables from Postgresql - {str(e)}. Rerun with run_mode = first")
             run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+            return
 
     elif run_mode == "first":
         db_jenkins_builds = None
