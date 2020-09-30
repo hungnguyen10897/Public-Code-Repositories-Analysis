@@ -919,7 +919,7 @@ def prepre_data_ml3(jenkins_builds, sonar_issues, sonar_analyses ,pipeline_model
     df2 = pipeline_model.transform(introduced_rules_df)
     rdd2 = df2.rdd.map(lambda x : (x[0],x[3])).reduceByKey(lambda v1,v2: sum_sparse_vectors(v1,v2)) \
                                                 .map(lambda x: Row(creation_analysis_key = x[0], introduced_rule_vec = x[1]))
-    if rdd.count() == 0:
+    if rdd2.count() == 0:
         return None                                                
     introduced_issues_rule_vec_df = spark.createDataFrame(rdd2)
 
