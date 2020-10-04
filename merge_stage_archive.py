@@ -184,22 +184,28 @@ def merge(file_directory, DTYPE):
 
 def main(jenkins_data_dir, sonar_data_dir):
 
-    jenkins_data_dir = Path(jenkins_data_dir)
-    sonar_data_dir = Path(sonar_data_dir)
+    dirs = []
+    dtype_dicts = []
+    if jenkins_data_dir is not None:
+        jenkins_data_dir = Path(jenkins_data_dir)
+        jenkins_builds_dir = jenkins_data_dir.joinpath("builds")
+        if not jenkins_builds_dir.exists():
+            print(f"ERROR: Jenkins builds data directory does not exsists - {jenkins_builds_dir.resolve()}")
+            sys.exit(1)
 
-    jenkins_builds_dir = jenkins_data_dir.joinpath("builds")
-    if not jenkins_builds_dir.exists():
-        print(f"ERROR: Jenkins builds data directory does not exsists - {jenkins_builds_dir.resolve()}")
-        sys.exit(1)
+        jenkins_tests_dir = jenkins_data_dir.joinpath("tests")
+        dirs += [jenkins_builds_dir, jenkins_tests_dir]
+        dtype_dicts += [JENKINS_BUILD_DTYPE, JENKINS_TEST_DTYPE]
 
-    jenkins_tests_dir = jenkins_data_dir.joinpath("tests")
+    if sonar_data_dir is not None: 
+        sonar_data_dir = Path(sonar_data_dir)
+        
+        sonar_analyses_dir = sonar_data_dir.joinpath("analyses")
+        sonar_measures_dir = sonar_data_dir.joinpath("measures")
+        sonar_issues_dir = sonar_data_dir.joinpath("issues")
 
-    sonar_analyses_dir = sonar_data_dir.joinpath("analyses")
-    sonar_measures_dir = sonar_data_dir.joinpath("measures")
-    sonar_issues_dir = sonar_data_dir.joinpath("issues")
-
-    dirs = [jenkins_builds_dir, jenkins_tests_dir, sonar_analyses_dir, sonar_measures_dir, sonar_issues_dir]
-    dtype_dicts = [JENKINS_BUILD_DTYPE, JENKINS_TEST_DTYPE, SONAR_ANALYSES_DTYPE, SONAR_MEASURES_DTYPE, SONAR_ISSUES_DTYPE]
+        dirs +=  [sonar_analyses_dir, sonar_measures_dir, sonar_issues_dir]
+        dtype_dicts +=  [SONAR_ANALYSES_DTYPE, SONAR_MEASURES_DTYPE, SONAR_ISSUES_DTYPE]
 
     for dir,dtype in zip(dirs, dtype_dicts):
         print(f"Merging files in directory {dir.resolve()}")
