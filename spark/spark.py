@@ -13,13 +13,12 @@ from pyspark.ml.classification import LogisticRegression, LogisticRegressionMode
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator, BinaryClassificationEvaluator
 from pyspark.ml.linalg import *
 from pyspark.ml.stat import ChiSquareTest
-import pandas as pd
 
+import pandas as pd
 import numpy as np
 from pathlib import Path
 from collections import OrderedDict
-import time
-import sys
+import time, sys, argparse
 
 CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
 CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
@@ -1041,6 +1040,7 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
                 if table.count() == 0:
                     print(f"No data in table [{name}]. Rerun with run_mode = first")
                     run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, "first")
+                    return
                     
         except Exception as e:
             print(f"Exception thrown when reading tables from Postgresql - {str(e)}. Rerun with run_mode = first")
@@ -1096,9 +1096,17 @@ def run(jenkins_data_directory, sonar_data_directory, spark_artefacts_dir, run_m
 
 if __name__ == "__main__":
 
-    jenkins_data_directory = "./jenkins_data/data"
-    sonar_data_directory = "./sonarcloud_data/data"
-    spark_artefacts_dir = "./spark_artefacts"
+    ap = argparse.ArgumentParser(description="Central Spark processing")
+
+    ap.add_argument("-j","--jenkins", default='../jenkins_data/data' , help="Path to Jenkins data folder")
+    ap.add_argument("-s","--sonarqube", default='../sonarcloud_data/data' , help="Path to Sonarqube data folder")
+    ap.add_argument("-a","--artefacts", default='./spark_artefacts' , help="Path to Spark artefacts folder")
+
+    args = vars(ap.parse_args())
+
+    jenkins_data_directory = args['jenkins']
+    sonar_data_directory = args['sonarqube']
+    spark_artefacts_dir = args['artefacts']
 
     # modes = ["first", "incremental", "update_models"]
 
