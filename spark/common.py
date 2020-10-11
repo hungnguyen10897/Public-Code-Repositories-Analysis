@@ -1,7 +1,3 @@
-
-
-from spark_constants import *
-
 from pathlib import Path
 from pyspark.ml import PipelineModel
 from pyspark.ml.feature import ChiSqSelector, ChiSqSelectorModel
@@ -10,6 +6,8 @@ from pyspark.ml.stat import ChiSquareTest
 from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator, BinaryClassificationEvaluator
 from pyspark.ml.linalg import DenseVector
+
+from spark_constants import *
 
 # For ML model 1 and 2
 def pipeline_process(df, get_pipeline_callback, spark_artefacts_dir, run_mode, i):
