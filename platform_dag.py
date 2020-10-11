@@ -15,14 +15,14 @@ from datetime import datetime, timedelta, date
 default_args = {
     'owner': 'hung',
     'depends_on_past': False,
-    'start_date': datetime(2020,8,16),
+    'start_date': datetime(2020,9,28),
     'email': ['hung.nguyen@tuni.fi'],
     'email_on_failure': True,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
 
-dag = DAG('platform', default_args = default_args, schedule_interval = '0 0 * * *')
+dag = DAG('platform', default_args = default_args, schedule_interval = '0 0 */3 * *')
 
 t1_jenkins = PythonOperator(
     task_id = 'fetch_jenkins_data',
