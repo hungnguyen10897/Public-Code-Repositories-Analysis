@@ -175,13 +175,19 @@ def train_predict(spark, ml_df, spark_artefacts_dir, run_mode, i, columns, top_1
                 print(f"\tTrain-{metricName}: {train_measure}")
 
             # Predicted negatives
-            predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() \
-                / predictions.select("label").filter("label = 1.0").count()
+            negs =  predictions.select("label").filter("label = 1.0").count()
+            if negs != 0:
+                predicted_negative_rate = predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / negs
+            else:
+                predicted_negative_rate = None
             print(f"\tpredicted_negative_rate: {predicted_negative_rate}")
             measures.append(predicted_negative_rate)
 
-            train_predicted_negative_rate = train_predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() \
-                / train_predictions.select("label").filter("label = 1.0").count()
+            train_negs = train_predictions.select("label").filter("label = 1.0").count()
+            if train_negs != 0:
+                train_predicted_negative_rate = train_predictions.select("label").filter("label = 1.0 AND prediction = 1.0").count() / train_negs
+            else:
+                train_predicted_negative_rate = None
             print(f"\ttrain_predicted_negative_rate: {train_predicted_negative_rate}")
             train_measures.append(train_predicted_negative_rate)
             
