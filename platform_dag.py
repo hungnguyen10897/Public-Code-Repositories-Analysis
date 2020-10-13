@@ -43,7 +43,7 @@ t1_sonar = PythonOperator(
 t2 = BashOperator(
     task_id = "spark_processing",
     dag = dag,
-    bash_command = f"cd {repo_dir} && spark-submit --driver-class-path postgresql-42.2.12.jar spark.py"
+    bash_command = f"cd {repo_dir}/spark && spark-submit --driver-class-path postgresql-42.2.12.jar spark.py"
 )
 
 t3 = PythonOperator(
