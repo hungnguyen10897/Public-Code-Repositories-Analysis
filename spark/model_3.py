@@ -122,11 +122,16 @@ def apply_ml3(spark, new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db
 
         ml_df1 = prepare_data_ml3(spark, new_jenkins_builds, db_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
         ml_df2 = prepare_data_ml3(spark, db_jenkins_builds, new_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
+        
         if ml_df1 is None and ml_df2 is None:
             print("No data for ML3 - Returning...")
             return
-
-        ml_df = ml_df1.union(ml_df2)
+        elif ml_df1 is None:
+            ml_df = ml_df2
+        elif ml_df2 is None:
+            ml_df = ml_df1
+        else:
+            ml_df = ml_df1.union(ml_df2)
 
     rules = pipeline_model.stages[0].labels
 
