@@ -193,4 +193,32 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		prcessed_date DATE DEFAULT CURRENT_DATE	
 	);
 	ALTER TABLE model_info OWNER to pra;
+
+	CREATE TABLE top_issues(
+		model VARCHAR NOT NULL,
+		input_data_amount INT,
+		issue_1 VARCHAR,
+		issue_importance_1 FLOAT,
+		issue_2 VARCHAR,
+		issue_importance_2 FLOAT,
+		issue_3 VARCHAR,
+		issue_importance_3 FLOAT,
+		issue_4 VARCHAR,
+		issue_importance_4 FLOAT,
+		issue_5 VARCHAR,
+		issue_importance_5 FLOAT,
+		issue_6 VARCHAR,
+		issue_importance_6 FLOAT,
+		issue_7 VARCHAR,
+		issue_importance_7 FLOAT,
+		issue_8 VARCHAR,
+		issue_importance_8 FLOAT,
+		issue_9 VARCHAR,
+		issue_importance_9 FLOAT,
+		issue_10 VARCHAR,
+		issue_importance_10 FLOAT,
+		prcessed_date DATE DEFAULT CURRENT_DATE
+	);
+	ALTER TABLE top_issues OWNER to pra;
+
 EOSQL
