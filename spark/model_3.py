@@ -37,8 +37,37 @@ def sum_sparse_vectors(v1, v2):
         results = add_to_map(results, e)
     return SparseVector(v1.size, list(results.keys()), list(results.values()))
 
-def prepare_data_ml3(spark, jenkins_builds, sonar_issues, sonar_analyses ,pipeline_model, label_idx_model):
-    
+def prepare_data_ml3(spark, jenkins_builds, sonar_issues, sonar_analyses , spark_artefacts_dir, run_mode):
+
+    # Change build result to only SUCCESS/FAIL for binary classification
+    modify_result = udf(lambda x: "SUCCESS" if x == "SUCCESS" else "FAIL", StringType())
+    spark.udf.register("modify_result" , modify_result)
+
+    if jenkins_builds is not None:
+        jenkins_builds = jenkins_builds.withColumn("result", modify_result("result"))
+
+    pipeline_path = Path(spark_artefacts_dir).joinpath("pipeline_3")
+    label_idx_model_path = Path(spark_artefacts_dir).joinpath("label_indexer_3")
+
+    # Getting pipeline and label indexer models
+    if run_mode == "first":
+
+        pipeline_model = get_ml3_pipeline().fit(sonar_issues)
+        pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
+
+        label_idx_model = StringIndexer(inputCol="result", outputCol="label", handleInvalid="skip").fit(jenkins_builds)
+        label_idx_model.write().overwrite().save(str(label_idx_model_path.absolute()))
+
+    elif run_mode == "incremental":
+
+        pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
+        label_idx_model = StringIndexerModel.load(str(label_idx_model_path.absolute()))
+
+    # Columns to return
+    rules = pipeline_model.stages[0].labels
+    columns = list(map(lambda x: "removed_" + x, rules)) + list(map(lambda x: "introduced_" + x, rules))
+
+    # Preparing
     removed_rules_df = sonar_issues.filter("status IN ('RESOLVED', 'CLOSED', 'REVIEWED')").select("current_analysis_key","rule")
 
     df1 = pipeline_model.transform(removed_rules_df)
@@ -85,43 +114,21 @@ def prepare_data_ml3(spark, jenkins_builds, sonar_issues, sonar_analyses ,pipeli
     df = sonar_df.join(jenkins_builds, sonar_df.revision == jenkins_builds.revision_number, how = "inner").select("result", "features")
     ml_df = label_idx_model.transform(df).select("label", "features")
 
-    return ml_df
+    return ml_df, columns
 
 def apply_ml3(spark, new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
 
-    # Change build result to only SUCCESS/FAIL for binary classification
-    modify_result = udf(lambda x: "SUCCESS" if x == "SUCCESS" else "FAIL", StringType())
-    spark.udf.register("modify_result" , modify_result)
-
-    if new_jenkins_builds is not None:
-        new_jenkins_builds = new_jenkins_builds.withColumn("result", modify_result("result"))
-
-    if db_jenkins_builds is not None:
-        db_jenkins_builds = db_jenkins_builds.withColumn("result", modify_result("result"))
-
-    pipeline_path = Path(spark_artefacts_dir).joinpath("pipeline_3")
-    label_idx_model_path = Path(spark_artefacts_dir).joinpath("label_indexer_3")
-    #PREPARE DATA
     if run_mode == "first":
 
-        pipeline_model = get_ml3_pipeline().fit(new_sonar_issues)
-        pipeline_model.write().overwrite().save(str(pipeline_path.absolute()))
-
-        label_idx_model = StringIndexer(inputCol="result", outputCol="label", handleInvalid="skip").fit(new_jenkins_builds)
-        label_idx_model.write().overwrite().save(str(label_idx_model_path.absolute()))
-
-        ml_df = prepare_data_ml3(spark, new_jenkins_builds, new_sonar_issues, new_sonar_analyses, pipeline_model, label_idx_model)
+        ml_df, columns = prepare_data_ml3(spark, new_jenkins_builds, new_sonar_issues, new_sonar_analyses, spark_artefacts_dir, run_mode)
         if ml_df is None:
             print("No data for ML3 - Returning...")
             return
 
     elif run_mode == "incremental":
         
-        pipeline_model = PipelineModel.load(str(pipeline_path.absolute()))
-        label_idx_model = StringIndexerModel.load(str(label_idx_model_path.absolute()))
-
-        ml_df1 = prepare_data_ml3(spark, new_jenkins_builds, db_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
-        ml_df2 = prepare_data_ml3(spark, db_jenkins_builds, new_sonar_issues, db_sonar_analyses, pipeline_model, label_idx_model)
+        ml_df1, columns = prepare_data_ml3(spark, new_jenkins_builds, db_sonar_issues, db_sonar_analyses, spark_artefacts_dir, run_mode)
+        ml_df2, columns = prepare_data_ml3(spark, db_jenkins_builds, new_sonar_issues, db_sonar_analyses, spark_artefacts_dir, run_mode)
         
         if ml_df1 is None and ml_df2 is None:
             print("No data for ML3 - Returning...")
@@ -132,10 +139,6 @@ def apply_ml3(spark, new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db
             ml_df = ml_df1
         else:
             ml_df = ml_df1.union(ml_df2)
-
-    rules = pipeline_model.stages[0].labels
-
-    columns = list(map(lambda x: "removed_" + x, rules)) + list(map(lambda x: "introduced_" + x, rules))
 
     ml_df.persist()
     print(f"DF for ML3 Count: {ml_df.count()}")
