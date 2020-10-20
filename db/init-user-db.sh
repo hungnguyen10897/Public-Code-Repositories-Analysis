@@ -195,6 +195,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 	ALTER TABLE model_info OWNER to pra;
 
 	CREATE TABLE top_issues(
+		project VARCHAR NOT NULL,
 		model VARCHAR NOT NULL,
 		input_data_amount INT,
 		issue_1 VARCHAR,
