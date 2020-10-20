@@ -75,7 +75,7 @@ def prepare_data_ml3(spark, jenkins_builds, sonar_issues, sonar_analyses , spark
                                                 .map(lambda x: Row(current_analysis_key = x[0], removed_rule_vec = x[1]))
     
     if rdd1.count() == 0:
-        return None
+        return None, columns
     removed_issues_rule_vec_df = spark.createDataFrame(rdd1)
 
     introduced_rules_df = sonar_issues.filter("status IN ('OPEN', 'REOPENED', 'CONFIRMED', 'TO_REVIEW')").select("creation_analysis_key","rule")
@@ -84,7 +84,7 @@ def prepare_data_ml3(spark, jenkins_builds, sonar_issues, sonar_analyses , spark
                                                 .map(lambda x: Row(creation_analysis_key = x[0], introduced_rule_vec = x[1]))
                                             
     if rdd2.count() == 0:
-        return None                                                
+        return None, columns                                       
     introduced_issues_rule_vec_df = spark.createDataFrame(rdd2)
 
     joined_sonar_rules_df = removed_issues_rule_vec_df.join(introduced_issues_rule_vec_df, 

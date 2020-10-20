@@ -2,16 +2,8 @@
 # spark-submit --driver-class-path postgresql-42.2.12.jar spark.py
 
 from pyspark import SparkContext, SparkConf
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.types import Row
+from pyspark.sql import SparkSession
 from pyspark.sql.utils import AnalysisException
-from pyspark.sql.functions import udf
-from pyspark.ml.feature import StringIndexer, StringIndexerModel, VectorAssembler, MinMaxScaler, Imputer, ChiSqSelector, ChiSqSelectorModel
-from pyspark.ml import Pipeline, PipelineModel
-from pyspark.ml.classification import LogisticRegression, LogisticRegressionModel, DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
-from pyspark.ml.evaluation import MulticlassClassificationEvaluator, BinaryClassificationEvaluator
-from pyspark.ml.linalg import DenseVector, SparseVector
-from pyspark.ml.stat import ChiSquareTest
 
 import pandas as pd
 import numpy as np

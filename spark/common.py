@@ -38,7 +38,6 @@ def feature_selector_process(spark, ml_df, spark_artefacts_dir, run_mode, i, fea
     name = f"ChiSquareSelectorModel_{i}"
     selector_model_path = Path(spark_artefacts_dir).joinpath(name)
 
-
     if run_mode == 'first':
 
         # ChiSq Test to obtain ChiSquare values (higher -> more dependence between feature and lable -> better)

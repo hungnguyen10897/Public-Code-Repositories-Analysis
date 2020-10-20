@@ -35,7 +35,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		total_test_duration FLOAT,
 		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);
-	ALTER TABLE jenkins_builds OWNER to pra;
+	ALTER TABLE jenkins_builds OWNER TO pra;
 
 	CREATE TABLE jenkins_tests(
 		job VARCHAR NOT NULL,
@@ -192,7 +192,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		feature_importance_10 FLOAT,
 		prcessed_date DATE DEFAULT CURRENT_DATE	
 	);
-	ALTER TABLE model_info OWNER to pra;
+	ALTER TABLE model_info OWNER TO pra;
 
 	CREATE TABLE top_issues(
 		project VARCHAR NOT NULL,
@@ -220,6 +220,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		issue_importance_10 FLOAT,
 		prcessed_date DATE DEFAULT CURRENT_DATE
 	);
-	ALTER TABLE top_issues OWNER to pra;
+	ALTER TABLE top_issues OWNER TO pra;
 
 EOSQL
