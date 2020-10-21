@@ -18,3 +18,4 @@ spark_artefacts
 env/**
 # Temporary for git module
 git/**
+**/test_data/**
