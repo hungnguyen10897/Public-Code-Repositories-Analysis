@@ -9,8 +9,10 @@ import time, sys
 from spark_constants import *
 from pyspark.ml.stat import ChiSquareTest
 from pyspark.ml.feature import ChiSqSelector
+from pyspark.ml.classification import DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
 
 from model_3 import prepare_data_ml3
+from common import train_predict
 
 conf = SparkConf().setMaster('local[*]')
 sc = SparkContext
@@ -43,6 +45,7 @@ def get_schema(source):
 
 def issue_impact_process(ml_df, columns, project):
 
+    # ChiSquare
     r = ChiSquareTest.test(ml_df, "features", "label")
     pValues = r.select("pvalues").collect()[0][0].tolist()
     stats = r.select("statistics").collect()[0][0].tolist()
@@ -57,54 +60,97 @@ def issue_impact_process(ml_df, columns, project):
         top_10_feaures_importance.append(columns[j])
         top_10_feaures_importance.append(stats[j])
 
-    top_issue = [project, "ChiSquareSelectorModel", ml_df.count()] + top_10_feaures_importance
-    top_issue_df = spark.createDataFrame(data = [top_issue], schema = TOP_ISSUE_SCHEMA)
+    top_issue_lines = []
+    data_count = ml_df.count()
+    # First importance value being 0 => skip
+    if top_10_feaures_importance[1] != 0:
+        print("\tFirst ChiSquare selected issue's importance is 0")
+        top_issue_lines.append([project, "ChiSquareSelectorModel", data_count] + top_10_feaures_importance)
+
+    # Tree-based algorithm's Feature Importances
+    dt = DecisionTreeClassifier(featuresCol='features', labelCol='label', maxDepth=3)
+    rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label', numTrees=10)
+
+    for algo, model_name in [(dt, "DecisionTreeModel"),(rf, "RandomForestModel")]:
+        
+        model = algo.fit(ml_df)
+
+        f_importances = model.featureImportances
+        indices = f_importances.indices.tolist()
+        values = f_importances.values.tolist()
+
+        if len(values) < 2:
+            print(f"\tOnly less or equal to 1 significant issue for model {model_name}. Skipping writing to Database.")
+            continue
+
+        value_index_lst = list(zip(values, indices))
+        value_index_lst.sort(key = lambda x: x[0], reverse= True)
+        
+        importance_sorted_features = []
+        for value, index in value_index_lst:
+            importance_sorted_features.append(columns[index])
+            importance_sorted_features.append(value)
+
+        length = len(importance_sorted_features)
+        
+        if length > 20:
+            importance_sorted_features = importance_sorted_features[:20]
+        elif length < 20:
+            importance_sorted_features = importance_sorted_features + (20 - length)*[None]
+
+        top_issue_lines.append([project, model_name, data_count] + importance_sorted_features)
+
+    top_issue_df = spark.createDataFrame(data = top_issue_lines, schema = TOP_ISSUE_SCHEMA)
     top_issue_df.write.jdbc(CONNECTION_STR, 'top_issues', mode='append', properties=CONNECTION_PROPERTIES)
 
 def main(spark_artefacts_dir):
     
-    project_jenkins_builds = spark.read.csv("./test_data/jmeter_jenkins_builds.csv", sep=',', schema = get_schema("jenkins builds"), ignoreLeadingWhiteSpace = True, 
-        ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
+    # project_jenkins_builds = spark.read.csv("./test_data/jmeter_jenkins_builds.csv", sep=',', schema = get_schema("jenkins builds"), ignoreLeadingWhiteSpace = True, 
+    #     ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
 
-    sonar_analyses = spark.read.csv("./test_data/jmeter_sonar_analyses.csv", sep=',', schema = get_schema("sonar analyses"), ignoreLeadingWhiteSpace = True, 
-        ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
+    # sonar_analyses = spark.read.csv("./test_data/jmeter_sonar_analyses.csv", sep=',', schema = get_schema("sonar analyses"), ignoreLeadingWhiteSpace = True, 
+    #     ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')
 
-    sonar_issues = spark.read.csv("./test_data/jmeter_sonar_issues.csv", sep=',', schema = get_schema("sonar issues"), ignoreLeadingWhiteSpace = True, 
-        ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')    
+    # sonar_issues = spark.read.csv("./test_data/jmeter_sonar_issues.csv", sep=',', schema = get_schema("sonar issues"), ignoreLeadingWhiteSpace = True, 
+    #     ignoreTrailingWhiteSpace = True, header=True, mode = 'FAILFAST')    
 
-    # sonar_analyses = spark.read.jdbc(CONNECTION_STR, "sonar_analyses", properties=CONNECTION_PROPERTIES)
-    # sonar_analyses.persist()
+    sonar_analyses = spark.read.jdbc(CONNECTION_STR, "sonar_analyses", properties=CONNECTION_PROPERTIES)
+    sonar_analyses.persist()
 
-    # sonar_issues = spark.read.jdbc(CONNECTION_STR, "sonar_issues", properties=CONNECTION_PROPERTIES)
-    # sonar_issues.persist()
+    sonar_issues = spark.read.jdbc(CONNECTION_STR, "sonar_issues", properties=CONNECTION_PROPERTIES)
+    sonar_issues.persist()
 
     projects = list(map(lambda x: x.project,sonar_analyses.select("project").distinct().collect()))
 
+    i = 0
     for project in projects:
-
+        print(f"{i}. {project}:")
+        i += 1
         project_sonar_analyses = sonar_analyses.filter(sonar_analyses.project == project)
         project_sonar_issues = sonar_issues.filter(sonar_issues.project == project)
 
-        # project_jenkins_builds_query = f"""
-        #     SELECT * FROM jenkins_builds WHERE revision_number IN (
-        #         SELECT revision FROM sonar_analyses WHERE project = '{project}'
-        #     )
-        # """
-        # project_jenkins_builds = spark.read \
-        #     .format("jdbc") \
-        #     .option("url", CONNECTION_STR) \
-        #     .option("user", CONNECTION_PROPERTIES["user"]) \
-        #     .option("password", CONNECTION_PROPERTIES["password"]) \
-        #     .option("query", project_jenkins_builds_query)\
-        #     .load()
+        project_jenkins_builds_query = f"""
+            SELECT * FROM jenkins_builds WHERE revision_number IN (
+                SELECT revision FROM sonar_analyses WHERE project = '{project}'
+            )
+        """
+        project_jenkins_builds = spark.read \
+            .format("jdbc") \
+            .option("url", CONNECTION_STR) \
+            .option("user", CONNECTION_PROPERTIES["user"]) \
+            .option("password", CONNECTION_PROPERTIES["password"]) \
+            .option("query", project_jenkins_builds_query)\
+            .load()
 
         ml_df, columns = prepare_data_ml3(spark, project_jenkins_builds, project_sonar_issues, project_sonar_analyses, spark_artefacts_dir, "incremental")
 
-        if ml_df is not None and ml_df.count() > 0:
-            print(f"\tCount: {ml_df.count()}")
-            issue_impact_process(ml_df, columns, project)
-        else:
-            print("\tNo data.")
+        if ml_df is None or ml_df.count() == 0:
+            print("\tNot enough data.")
+            continue
+        
+        ml_df.persist()
+        print(f"\tCount: {ml_df.count()}")
+        issue_impact_process(ml_df, columns, project)
 
 if __name__ == "__main__":
     print("Start Spark Processing per Project.")
