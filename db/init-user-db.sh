@@ -190,7 +190,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		feature_importance_9 FLOAT,
 		feature_10 VARCHAR,
 		feature_importance_10 FLOAT,
-		prcessed_date DATE DEFAULT CURRENT_DATE	
+		processed_date DATE DEFAULT CURRENT_DATE	
 	);
 	ALTER TABLE model_info OWNER TO pra;
 
@@ -218,7 +218,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		issue_importance_9 FLOAT,
 		issue_10 VARCHAR,
 		issue_importance_10 FLOAT,
-		prcessed_date DATE DEFAULT CURRENT_DATE
+		processed_date DATE DEFAULT CURRENT_DATE
 	);
 	ALTER TABLE top_issues OWNER TO pra;
 
