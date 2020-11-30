@@ -1,0 +1,639 @@
+databases:
+- database_name: PRA
+  extra: "{\r\n    \"metadata_params\": {},\r\n    \"engine_params\": {},\r\n    \"\
+    metadata_cache_timeout\": {},\r\n    \"schemas_allowed_for_csv_upload\": []\r\n\
+    }"
+  sqlalchemy_uri: postgresql+psycopg2://pra:XXXXXXXXXX@130.230.52.209:5432/pra
+  tables:
+  - columns:
+    - column_name: last_commit_date
+      is_dttm: true
+      type: TIMESTAMP WITHOUT TIME ZONE
+    - column_name: new_sqale_debt_ratio
+      type: DOUBLE PRECISION
+    - column_name: sqale_debt_ratio
+      type: DOUBLE PRECISION
+    - column_name: duplicated_lines_density
+      type: DOUBLE PRECISION
+    - column_name: security_review_rating
+      type: DOUBLE PRECISION
+    - column_name: test_success_density
+      type: DOUBLE PRECISION
+    - column_name: new_development_cost
+      type: DOUBLE PRECISION
+    - column_name: comment_lines_density
+      type: DOUBLE PRECISION
+    - column_name: branch_coverage
+      type: DOUBLE PRECISION
+    - column_name: reliability_rating
+      type: DOUBLE PRECISION
+    - column_name: sqale_rating
+      type: DOUBLE PRECISION
+    - column_name: line_coverage
+      type: DOUBLE PRECISION
+    - column_name: security_rating
+      type: DOUBLE PRECISION
+    - column_name: development_cost
+      type: DOUBLE PRECISION
+    - column_name: file_complexity
+      type: DOUBLE PRECISION
+    - column_name: coverage
+      type: DOUBLE PRECISION
+    - column_name: effort_to_reach_maintainability_rating_a
+      type: BIGINT
+    - column_name: reliability_remediation_effort
+      type: BIGINT
+    - column_name: security_remediation_effort
+      type: BIGINT
+    - column_name: false_positive_issues
+      type: BIGINT
+    - column_name: conditions_to_cover
+      type: BIGINT
+    - column_name: test_execution_time
+      type: BIGINT
+    - column_name: lines_to_cover
+      type: BIGINT
+    - column_name: wont_fix_issues
+      type: BIGINT
+    - column_name: critical_violations
+      type: BIGINT
+    - column_name: major_violations
+      type: BIGINT
+    - column_name: duplicated_blocks
+      type: BIGINT
+    - column_name: blocker_violations
+      type: BIGINT
+    - column_name: duplicated_files
+      type: BIGINT
+    - column_name: duplicated_lines
+      type: BIGINT
+    - column_name: sqale_index
+      type: BIGINT
+    - column_name: test_failures
+      type: BIGINT
+    - column_name: info_violations
+      type: BIGINT
+    - column_name: minor_violations
+      type: BIGINT
+    - column_name: uncovered_conditions
+      type: BIGINT
+    - column_name: cognitive_complexity
+      type: BIGINT
+    - column_name: uncovered_lines
+      type: BIGINT
+    - column_name: confirmed_issues
+      type: BIGINT
+    - column_name: code_smells
+      type: BIGINT
+    - column_name: comment_lines
+      type: BIGINT
+    - column_name: security_hotspots
+      type: BIGINT
+    - column_name: reopened_issues
+      type: BIGINT
+    - column_name: skipped_tests
+      type: BIGINT
+    - column_name: open_issues
+      type: BIGINT
+    - column_name: test_errors
+      type: BIGINT
+    - column_name: vulnerabilities
+      type: BIGINT
+    - column_name: classes
+      type: BIGINT
+    - column_name: statements
+      type: BIGINT
+    - column_name: violations
+      type: BIGINT
+    - column_name: bugs
+      type: BIGINT
+    - column_name: ncloc
+      type: BIGINT
+    - column_name: complexity
+      type: BIGINT
+    - column_name: functions
+      type: BIGINT
+    - column_name: files
+      type: BIGINT
+    - column_name: lines
+      type: BIGINT
+    - column_name: tests
+      type: BIGINT
+    - column_name: quality_gate_details
+      type: TEXT
+    - column_name: ncloc_language_distribution
+      type: TEXT
+    - column_name: analysis_key
+      type: TEXT
+    - column_name: alert_status
+      type: TEXT
+    - column_name: quality_profiles
+      type: TEXT
+    - column_name: project
+      type: TEXT
+    main_dttm_col: last_commit_date
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      metric_type: count
+      verbose_name: COUNT(*)
+    schema: public
+    sql: SELECT * FROM sonar_measures
+    table_name: sonar_measures_main
+  - columns:
+    - column_name: issue
+      expression: issue
+      type: VARCHAR
+    - column_name: processed_date
+      is_dttm: true
+      type: DATE
+    - column_name: issue_importance_10
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_1
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_2
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_3
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_4
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_5
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_6
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_7
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_8
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_9
+      type: DOUBLE PRECISION
+    - column_name: issue_10
+      type: VARCHAR
+    - column_name: issue_1
+      type: VARCHAR
+    - column_name: issue_2
+      type: VARCHAR
+    - column_name: issue_3
+      type: VARCHAR
+    - column_name: issue_4
+      type: VARCHAR
+    - column_name: issue_5
+      type: VARCHAR
+    - column_name: issue_6
+      type: VARCHAR
+    - column_name: issue_7
+      type: VARCHAR
+    - column_name: issue_8
+      type: VARCHAR
+    - column_name: issue_9
+      type: VARCHAR
+    - column_name: project
+      type: VARCHAR
+    - column_name: model
+      type: VARCHAR
+    - column_name: input_data_amount
+      type: INTEGER
+    main_dttm_col: processed_date
+    metrics:
+    - expression: input_data_amount
+      metric_name: Input data amount
+    - expression: AVG(importance_value)
+      metric_name: importance_value
+    params: '{"remote_id": 46, "database_name": "PRA", "import_time": 1606651393}'
+    schema: public
+    sql: "SELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_1 as issue, issue_importance_1 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_2 as issue, issue_importance_2 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_3 as issue, issue_importance_3 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_4 as issue, issue_importance_4 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_5 as issue, issue_importance_5 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_6 as issue, issue_importance_6 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_7 as issue, issue_importance_7 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_8 as issue, issue_importance_8 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_9 as issue, issue_importance_9 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
+      \ issue_10 as issue, issue_importance_10 as importance_value FROM public.top_issues"
+    table_name: top_issues_aggregated
+  - columns:
+    - column_name: feature_importance_10
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_1
+      type: DOUBLE PRECISION
+    - column_name: train_f1
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_2
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_3
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_4
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_5
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_6
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_7
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_8
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_9
+      type: DOUBLE PRECISION
+    - column_name: train_predicted_negative_rate
+      type: DOUBLE PRECISION
+    - column_name: train_area_under_roc
+      type: DOUBLE PRECISION
+    - column_name: train_area_under_pr
+      type: DOUBLE PRECISION
+    - column_name: train_weighted_recall
+      type: DOUBLE PRECISION
+    - column_name: train_weighted_precision
+      type: DOUBLE PRECISION
+    - column_name: train_accuracy
+      type: DOUBLE PRECISION
+    - column_name: feature_10
+      type: VARCHAR
+    - column_name: feature_1
+      type: VARCHAR
+    - column_name: feature_2
+      type: VARCHAR
+    - column_name: feature_3
+      type: VARCHAR
+    - column_name: feature_4
+      type: VARCHAR
+    - column_name: feature_5
+      type: VARCHAR
+    - column_name: feature_6
+      type: VARCHAR
+    - column_name: feature_7
+      type: VARCHAR
+    - column_name: feature_8
+      type: VARCHAR
+    - column_name: feature_9
+      type: VARCHAR
+    - column_name: model
+      type: VARCHAR
+    - column_name: prcessed_date
+      type: DATE
+    - column_name: train_data_amount
+      type: INTEGER
+    - column_name: importance_value
+    - column_name: feature
+    main_dttm_col: prcessed_date
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      verbose_name: COUNT(*)
+    params: '{"remote_id": 13, "database_name": "PRA", "import_time": 1606651393}'
+    schema: public
+    sql: "SELECT model, feature_1 as feature, feature_importance_1 as importance_value\
+      \ FROM public.model_info\r\nUNION\r\nSELECT model, feature_2 as feature, feature_importance_2\
+      \ as importance_value FROM public.model_info\r\nUNION\r\nSELECT model, feature_3\
+      \ as feature, feature_importance_3 as importance_value FROM public.model_info\r\
+      \nUNION\r\nSELECT model, feature_4 as feature, feature_importance_4 as importance_value\
+      \ FROM public.model_info\r\nUNION\r\nSELECT model, feature_5 as feature, feature_importance_5\
+      \ as importance_value FROM public.model_info\r\nUNION\r\nSELECT model, feature_6\
+      \ as feature, feature_importance_6 as importance_value FROM public.model_info\r\
+      \nUNION\r\nSELECT model, feature_7 as feature, feature_importance_7 as importance_value\
+      \ FROM public.model_info\r\nUNION\r\nSELECT model, feature_8 as feature, feature_importance_8\
+      \ as importance_value FROM public.model_info\r\nUNION\r\nSELECT model, feature_9\
+      \ as feature, feature_importance_9 as importance_value FROM public.model_info\r\
+      \nUNION\r\nSELECT model, feature_10 as feature, feature_importance_10 as importance_value\
+      \ FROM public.model_info"
+    table_name: model_feature_importance
+  - columns:
+    - column_name: prcessed_date
+      is_dttm: true
+      type: DATE
+    - column_name: feature_importance_10
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_1
+      type: DOUBLE PRECISION
+    - column_name: train_f1
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_2
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_3
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_4
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_5
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_6
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_7
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_8
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_9
+      type: DOUBLE PRECISION
+    - column_name: train_predicted_negative_rate
+      type: DOUBLE PRECISION
+    - column_name: train_area_under_roc
+      type: DOUBLE PRECISION
+    - column_name: train_area_under_pr
+      type: DOUBLE PRECISION
+    - column_name: train_weighted_recall
+      type: DOUBLE PRECISION
+    - column_name: train_weighted_precision
+      type: DOUBLE PRECISION
+    - column_name: train_accuracy
+      type: DOUBLE PRECISION
+    - column_name: feature_10
+      type: VARCHAR
+    - column_name: feature_1
+      type: VARCHAR
+    - column_name: feature_2
+      type: VARCHAR
+    - column_name: feature_3
+      type: VARCHAR
+    - column_name: feature_4
+      type: VARCHAR
+    - column_name: feature_5
+      type: VARCHAR
+    - column_name: feature_6
+      type: VARCHAR
+    - column_name: feature_7
+      type: VARCHAR
+    - column_name: feature_8
+      type: VARCHAR
+    - column_name: feature_9
+      type: VARCHAR
+    - column_name: model
+      type: VARCHAR
+    - column_name: train_data_amount
+      type: INTEGER
+    - column_name: measure
+    - column_name: metric
+    main_dttm_col: prcessed_date
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      metric_type: count
+      verbose_name: COUNT(*)
+    params: '{"remote_id": 32, "database_name": "PRA", "import_time": 1606651393}'
+    schema: public
+    sql: "SELECT model, 'f1' as metric, train_f1 as measure from model_info\r\nUNION\r\
+      \nSELECT model, 'weighted_precision' as metric, train_weighted_precision  as\
+      \ measure from model_info\r\nUNION\r\nSELECT model, 'weighted_recall' as metric,\
+      \ train_weighted_recall as measure from model_info\r\nUNION\r\nSELECT model,\
+      \ 'accuracy' as metric, train_accuracy as measure from model_info\r\nUNION\r\
+      \nSELECT model, 'area_under_roc' as metric, train_area_under_roc as measure\
+      \ from model_info\r\nUNION\r\nSELECT model, 'train_area_under_pr ' as metric,\
+      \ train_area_under_pr  as measure from model_info\r\nUNION\r\nSELECT model,\
+      \ 'predicted_negative_rate' as metric, train_predicted_negative_rate  as measure\
+      \ from model_info"
+    table_name: model_train_mesures
+  - columns:
+    - column_name: processed_date
+      is_dttm: true
+      type: DATE
+    - column_name: f1
+      type: DOUBLE PRECISION
+    - column_name: predicted_negative_rate
+      type: DOUBLE PRECISION
+    - column_name: area_under_roc
+      type: DOUBLE PRECISION
+    - column_name: area_under_pr
+      type: DOUBLE PRECISION
+    - column_name: weighted_recall
+      type: DOUBLE PRECISION
+    - column_name: weighted_precision
+      type: DOUBLE PRECISION
+    - column_name: accuracy
+      type: DOUBLE PRECISION
+    - column_name: model
+      type: VARCHAR
+    - column_name: data_amount
+      type: INTEGER
+    - column_name: measure
+    - column_name: metric
+    main_dttm_col: processed_date
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      metric_type: count
+      verbose_name: COUNT(*)
+    params: '{"remote_id": 33, "database_name": "PRA", "import_time": 1606651393}'
+    schema: public
+    sql: "SELECT model, 'f1' as metric, f1 as measure, processed_date FROM public.model_performance\
+      \ \r\nUNION \r\nSELECT model, 'weighted_precision ' as metric, weighted_precision\
+      \  as measure, processed_date FROM public.model_performance \r\nUNION \r\nSELECT\
+      \ model, 'weighted_recall ' as metric, weighted_recall  as measure, processed_date\
+      \ FROM public.model_performance \r\nUNION \r\nSELECT model, 'accuracy ' as metric,\
+      \ accuracy  as measure, processed_date FROM public.model_performance \r\nUNION\
+      \ \r\nSELECT model, 'area_under_roc ' as metric, area_under_roc  as measure,\
+      \ processed_date FROM public.model_performance \r\nUNION \r\nSELECT model, 'area_under_pr\
+      \ ' as metric, area_under_pr  as measure, processed_date FROM public.model_performance\
+      \ \r\nUNION \r\nSELECT model, 'predicted_negative_rate ' as metric, predicted_negative_rate\
+      \  as measure, processed_date FROM public.model_performance"
+    table_name: model_performance_aggregate
+  - columns:
+    - column_name: prcessed_date
+      is_dttm: true
+      type: DATE
+    - column_name: feature_importance_10
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_1
+      type: DOUBLE PRECISION
+    - column_name: train_f1
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_2
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_3
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_4
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_5
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_6
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_7
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_8
+      type: DOUBLE PRECISION
+    - column_name: feature_importance_9
+      type: DOUBLE PRECISION
+    - column_name: train_predicted_negative_rate
+      type: DOUBLE PRECISION
+    - column_name: train_area_under_roc
+      type: DOUBLE PRECISION
+    - column_name: train_area_under_pr
+      type: DOUBLE PRECISION
+    - column_name: train_weighted_recall
+      type: DOUBLE PRECISION
+    - column_name: train_weighted_precision
+      type: DOUBLE PRECISION
+    - column_name: train_accuracy
+      type: DOUBLE PRECISION
+    - column_name: feature_10
+      type: VARCHAR
+    - column_name: feature_1
+      type: VARCHAR
+    - column_name: feature_2
+      type: VARCHAR
+    - column_name: feature_3
+      type: VARCHAR
+    - column_name: feature_4
+      type: VARCHAR
+    - column_name: feature_5
+      type: VARCHAR
+    - column_name: feature_6
+      type: VARCHAR
+    - column_name: feature_7
+      type: VARCHAR
+    - column_name: feature_8
+      type: VARCHAR
+    - column_name: feature_9
+      type: VARCHAR
+    - column_name: model
+      type: VARCHAR
+    - column_name: train_data_amount
+      type: INTEGER
+    main_dttm_col: prcessed_date
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      metric_type: count
+      verbose_name: COUNT(*)
+    params: '{"remote_id": 31, "database_name": "PRA", "import_time": 1606651393}'
+    schema: public
+    sql: SELECT * FROM public.model_info
+    table_name: model_info_main
+  - columns:
+    - column_name: creation_date
+      is_dttm: true
+      type: TIMESTAMP WITHOUT TIME ZONE
+    - column_name: update_date
+      is_dttm: true
+      type: TIMESTAMP WITHOUT TIME ZONE
+    - column_name: close_date
+      is_dttm: true
+      type: TIMESTAMP WITHOUT TIME ZONE
+    - column_name: debt
+      type: BIGINT
+    - column_name: effort
+      type: BIGINT
+    - column_name: creation_analysis_key
+      type: TEXT
+    - column_name: current_analysis_key
+      type: TEXT
+    - column_name: issue_key
+      type: TEXT
+    - column_name: tags
+      type: TEXT
+    - column_name: status
+      type: TEXT
+    - column_name: project
+      type: TEXT
+    - column_name: severity
+      type: TEXT
+    - column_name: resolution
+      type: TEXT
+    - column_name: rule
+      type: TEXT
+    - column_name: type
+      type: TEXT
+    main_dttm_col: creation_date
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      metric_type: count
+      verbose_name: COUNT(*)
+    schema: public
+    sql: SELECT * FROM public.sonar_issues
+    table_name: sonar_issues_main
+  - columns:
+    - column_name: processed_date
+      is_dttm: true
+      type: DATE
+    - column_name: f1
+      type: DOUBLE PRECISION
+    - column_name: predicted_negative_rate
+      type: DOUBLE PRECISION
+    - column_name: area_under_roc
+      type: DOUBLE PRECISION
+    - column_name: area_under_pr
+      type: DOUBLE PRECISION
+    - column_name: weighted_recall
+      type: DOUBLE PRECISION
+    - column_name: weighted_precision
+      type: DOUBLE PRECISION
+    - column_name: accuracy
+      type: DOUBLE PRECISION
+    - column_name: model
+      type: VARCHAR
+    - column_name: data_amount
+      type: INTEGER
+    main_dttm_col: processed_date
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      metric_type: count
+      verbose_name: COUNT(*)
+    params: '{"remote_id": 14, "database_name": "PRA", "import_time": 1606651393}'
+    schema: public
+    sql: SELECT * FROM model_performance
+    table_name: model_performance_main
+  - columns:
+    - column_name: commit_ts
+      is_dttm: true
+      type: TIMESTAMP WITHOUT TIME ZONE
+    - column_name: total_test_duration
+      type: DOUBLE PRECISION
+    - column_name: test_fail_count
+      type: BIGINT
+    - column_name: test_pass_count
+      type: BIGINT
+    - column_name: test_skip_count
+      type: BIGINT
+    - column_name: estimated_duration
+      type: BIGINT
+    - column_name: build_number
+      type: BIGINT
+    - column_name: duration
+      type: BIGINT
+    - column_name: revision_number
+      type: TEXT
+    - column_name: commit_id
+      type: TEXT
+    - column_name: job
+      type: TEXT
+    - column_name: result
+      type: TEXT
+    main_dttm_col: commit_ts
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      metric_type: count
+      verbose_name: COUNT(*)
+    schema: public
+    sql: SELECT * FROM public.jenkins_builds
+    table_name: jenkins_builds_main
+  - columns:
+    - column_name: date
+      is_dttm: true
+      type: TIMESTAMP WITHOUT TIME ZONE
+    - column_name: analysis_key
+      type: TEXT
+    - column_name: project_version
+      type: TEXT
+    - column_name: project
+      type: TEXT
+    - column_name: revision
+      type: TEXT
+    main_dttm_col: date
+    metrics:
+    - expression: COUNT(*)
+      metric_name: count
+      metric_type: count
+      verbose_name: COUNT(*)
+    schema: public
+    sql: SELECT * FROM sonar_analyses
+    table_name: sonar_analyses_main

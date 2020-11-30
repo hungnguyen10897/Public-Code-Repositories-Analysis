@@ -31,7 +31,7 @@ $ airflow webserver -D  		//can be skipped
 - Change the start_date argument to the current date
 
 - Create a hard link between from platform_dag.py to a link in dag folder of Airflow
-$ ln ./platform_dag.py $AIRFLOW_HOME/dags/
+$ ln .dags/platform_dag.py $AIRFLOW_HOME/dags/
 
 - Start the dag
 $ airflow trigger_dag platform
