@@ -42,7 +42,7 @@ def get_projects(path):
     p = Path(path)
     projects = []
     if not p.exists():
-        print("Projects file path {p.resolve()} does not exist. Exiting")
+        print(f"Projects file path {p.resolve()} does not exist. Exiting")
         sys.exit(1)
     with open(p.resolve(), 'r') as f:
         for line in f:
@@ -353,14 +353,15 @@ def process_jobs(name, is_job, server, first_load, output_dir_str ='./data', bui
        
         write_to_file((fullName,df_builds, df_tests), output_dir_str, build_only)
 
-def fetch_jenkins(all, projects_path, output_path, build_only):
+def fetch_jenkins(all, server_url, projects_path, output_path, build_only):
 
     start = time.time()
-    server = jenkins.Jenkins('https://builds.apache.org/')
+    server = jenkins.Jenkins(server_url)
 
     # Sometimes connecting to Jenkins server is banned due to ill use of API
     # Test connection to server
     print(f"Jenkins-API version: {server.get_version()}")
+    print(f"Fetching data from server: {server_url}")
 
     if not all:
         print("Processing projects.")
@@ -383,16 +384,18 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
 
-    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'")
+    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default to './data'")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
     ap.add_argument("-p","--projects", help = "Path to a file containing names of all projects to load, if not provided, load data from all jobs available on the server.")
+    ap.add_argument("-s","--server", default="https://builds.apache.org/", help="URL to Jenkins server, default to https://builds.apache.org/")
 
     args = vars(ap.parse_args())
 
     build_only = args['build_only']
     output_path = args['output_path']
     projects_path = None if 'projects' not in args else args['projects']
+    server_url = args['server']
 
     all = True if projects_path is None else False
-    fetch_jenkins(all, projects_path, output_path, build_only)
+    fetch_jenkins(all, server_url, projects_path, output_path, build_only)
 
