@@ -166,13 +166,13 @@ def write_metrics_file(metric_list):
                 'No Description' if 'description' not in metric else metric['description']
                 ))
 
-def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts = None):
+def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts = None, organization=None):
 
     page_size = 200
     params = {'p' : iter, 'ps':page_size}
     if type == 'projects':
         endpoint = SERVER + "api/components/search"
-        params['organization'] = ORGANIZATION
+        params['organization'] = organization
         params['qualifiers'] = 'TRK'
 
     elif type == 'metrics':
@@ -225,9 +225,9 @@ def query_server(type, iter = 1, project_key = None, metric_list = [], from_ts =
 
     if iter*page_size < total_num_elements:
         if type == 'measures':
-            element_list = concat_measures(element_list, query_server(type, iter+1, project_key, from_ts = from_ts))
+            element_list = concat_measures(element_list, query_server(type, iter+1, project_key, from_ts = from_ts, organization=organization))
         else:
-            element_list = element_list + query_server(type, iter+1, project_key, from_ts = from_ts)
+            element_list = element_list + query_server(type, iter+1, project_key, from_ts = from_ts, organization=organization)
     
     return element_list
 
@@ -537,9 +537,11 @@ def process_project_analyses(project, output_path):
     
     return None, last_analysis_ts
 
-def fetch_sonar_data(output_path):
+def fetch_sonar_data(output_path, organization='apache'):
 
-    project_list = query_server(type='projects')
+    print(f"Fetching data from organization: {organization}")
+
+    project_list = query_server(type='projects', organization=organization)
     project_list.sort(key = lambda x: x['key'])
 
     print(f"Total: {len(project_list)} projects.")
@@ -556,14 +558,16 @@ def fetch_sonar_data(output_path):
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory.")
+    ap.add_argument("-p","--output-path", default='./data' , help="Path to output file directory.")
+    ap.add_argument("-o","--organization", default='apache', help="Organization key on sonarcloud.io")
 
     args = vars(ap.parse_args())
 
     output_path = args['output_path']
+    organization = args['organization']
 
     # Write all metrics to a file
     # write_metrics_file(query_server(type='metrics'))
 
-    fetch_sonar_data(output_path)
+    fetch_sonar_data(output_path, organization)
 
