@@ -10,8 +10,8 @@ import numpy as np
 import os, re
 
 SERVER = "https://sonarcloud.io/"
-ORGANIZATION = "apache"
 SONAR_MEASURES_DTYPE = OrderedDict({
+    'organization' : 'object',
     'project': 'object',
     'analysis_key' : 'object',
     'complexity': 'Int64',
@@ -121,6 +121,7 @@ SONAR_MEASURES_DTYPE = OrderedDict({
     'new_lines': 'object'})
 
 SONAR_ISSUES_DTYPE = OrderedDict({
+    "organization" : "object",
     "project" : "object",
     "current_analysis_key" : "object",
     "creation_analysis_key" : "object",
@@ -139,6 +140,7 @@ SONAR_ISSUES_DTYPE = OrderedDict({
 })
 
 SONAR_ANALYSES_DTYPE = OrderedDict({
+    "organization" : "object",
     "project" : "object", 
     "analysis_key" : "object", 
     "date" : "object", 
@@ -376,7 +378,7 @@ def get_analysis_key(date, key_date_list):
             
     return key_date_list[-1][0]
 
-def process_project_measures(project, output_path, new_analyses, metrics_path = None ):
+def process_project_measures(organization, project, output_path, new_analyses, metrics_path = None ):
 
     project_key = project['key']
 
@@ -397,10 +399,11 @@ def process_project_measures(project, output_path, new_analyses, metrics_path = 
     measures.sort(key = lambda x: metrics_order_type[x['metric']][0])
 
     data = OrderedDict()
+    data['organization'] = [organization] * len(new_analyses)
     data['project'] = [project_key] * len(new_analyses)
     data['analysis_key'] = new_analyses['analysis_key'].values.tolist()
 
-    columns = ['project', 'analysis_key']
+    columns = ['organization', 'project', 'analysis_key']
 
     columns_with_metrics, data_with_measures = extract_measures_value(measures, metrics_order_type, columns, data)
 
@@ -430,7 +433,7 @@ def get_issue_key_analysis_map(archive_file_path):
 
     return {}
 
-def process_project_issues(project, output_path, new_analyses, latest_analysis_ts_on_file):
+def process_project_issues(organization, project, output_path, new_analyses, latest_analysis_ts_on_file):
 
     project_key = project['key']
 
@@ -477,7 +480,7 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
 
         type = None if 'type' not in project_issue else project_issue['type']
      
-        issue = (project_key, current_analysis_key, creation_analysis_key, issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
+        issue = (organization, project_key, current_analysis_key, creation_analysis_key, issue_key, type, rule, severity, status, resolution, effort, debt, tags, creation_date, update_date, close_date)
         issues.append(issue)
 
     print(f"\t\t{project_key} - {len(issues)} new issues")
@@ -490,7 +493,7 @@ def process_project_issues(project, output_path, new_analyses, latest_analysis_t
 
         df.to_csv(file_path, index=False, header=True, mode='w')
 
-def process_project_analyses(project, output_path):
+def process_project_analyses(organization, project, output_path):
 
     project_key = project['key']
 
@@ -526,7 +529,7 @@ def process_project_analyses(project, output_path):
         project_version = None if 'projectVersion' not in analysis else analysis['projectVersion']
         revision = None if 'revision' not in analysis else analysis['revision']
 
-        line = (project_key, analysis_key, date, project_version, revision)
+        line = (organization, project_key, analysis_key, date, project_version, revision)
         lines.append(line)
     
     print(f"\t\t {project_key} - {len(lines)} new analyses.")
@@ -549,11 +552,11 @@ def fetch_sonar_data(output_path, organization='apache'):
     for project in project_list:
         print(f"\t{i}: ")
         i += 1
-        new_analyses, latest_analysis_ts_on_file = process_project_analyses(project, output_path)
+        new_analyses, latest_analysis_ts_on_file = process_project_analyses(organization, project, output_path)
         if new_analyses is None:
             continue
-        process_project_measures(project, output_path, new_analyses)
-        process_project_issues(project, output_path, new_analyses, latest_analysis_ts_on_file)
+        process_project_measures(organization, project, output_path, new_analyses)
+        process_project_issues(organization, project, output_path, new_analyses, latest_analysis_ts_on_file)
 
 if __name__ == "__main__":
 
