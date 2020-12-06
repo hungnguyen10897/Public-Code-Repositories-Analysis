@@ -6,7 +6,7 @@ import sys
 repo_dir = "/mnt/pra"
 sys.path.append(repo_dir)
 
-from jenkins_data.fetch_jenkins_data import fetch_jenkins
+from jenkins_data.fetch_jenkins_data import fetch_jenkins_data
 from sonarcloud_data.fetch_sonarcloud_data import fetch_sonar_data
 from merge_stage_archive import main
 
@@ -27,7 +27,7 @@ dag = DAG('platform', default_args = default_args, schedule_interval = '0 0 */3 
 t1_jenkins = PythonOperator(
     task_id = 'fetch_jenkins_data',
     provide_context=False,
-    python_callable= fetch_jenkins,
+    python_callable= fetch_jenkins_data,
     op_args=[True, None, f'{repo_dir}/jenkins_data/data', True],
     dag = dag
 )
