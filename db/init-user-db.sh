@@ -21,6 +21,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 	\c pra
 
 	CREATE TABLE jenkins_builds(
+		server VARCHAR NOT NULL,
 		job VARCHAR NOT NULL,
 		build_number INT NOT NULL,
 		result VARCHAR(50),
@@ -33,37 +34,35 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		test_fail_count INT,
 		test_skip_count INT,
 		total_test_duration FLOAT,
+		processed BOOLEAN DEFAULT FALSE,
 		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);
 	ALTER TABLE jenkins_builds OWNER TO pra;
 
-	CREATE TABLE jenkins_tests(
-		job VARCHAR NOT NULL,
-		build_number INT NOT NULL,
-		package VARCHAR(50),
-		class VARCHAR(50),
-		name VARCHAR(50),
-		duration INT,
-		status VARCHAR(50),
-		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
-	);
-	ALTER TABLE jenkins_tests OWNER TO pra;
-
 	CREATE TABLE sonar_analyses(
+		organization VARCHAR NOT NULL,
 		project VARCHAR NOT NULL, 
 		analysis_key VARCHAR,
 		date TIMESTAMP WITHOUT TIME ZONE,
 		project_version VARCHAR,
 		revision VARCHAR,
+		processed BOOLEAN DEFAULT FALSE,
 		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);
 	ALTER TABLE sonar_analyses OWNER TO pra;
 
 	CREATE TABLE sonar_measures(
+		organization VARCHAR NOT NULL,
 		project VARCHAR NOT NULL,
 		analysis_key VARCHAR,
 		complexity INT,
+		class_complexity INT,
+		function_complexity VARCHAR,
 		file_complexity FLOAT,
+		function_complexity_distribution VARCHAR,
+		file_complexity_distribution VARCHAR,
+		complexity_in_classes VARCHAR,
+		complexity_in_functions VARCHAR,
 		cognitive_complexity INT,
 		test_errors INT,
 		skipped_tests INT,
@@ -78,10 +77,25 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		conditions_to_cover INT,
 		uncovered_conditions INT,
 		branch_coverage FLOAT,
+		new_coverage VARCHAR,
+		new_lines_to_cover VARCHAR,
+		new_uncovered_lines VARCHAR,
+		new_line_coverage VARCHAR,
+		new_conditions_to_cover VARCHAR,
+		new_uncovered_conditions VARCHAR,
+		new_branch_coverage VARCHAR,
+		executable_lines_data VARCHAR,
+		public_api VARCHAR,
+		public_documented_api_density VARCHAR,
+		public_undocumented_api VARCHAR,
 		duplicated_lines INT,
 		duplicated_lines_density FLOAT,
 		duplicated_blocks INT,
 		duplicated_files INT,
+		duplications_data VARCHAR,
+		new_duplicated_lines VARCHAR,
+		new_duplicated_blocks VARCHAR,
+		new_duplicated_lines_density VARCHAR,
 		quality_profiles VARCHAR,
 		quality_gate_details VARCHAR,
 		violations INT,
@@ -90,6 +104,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		major_violations INT,
 		minor_violations INT,
 		info_violations INT,
+		new_violations VARCHAR,
+		new_blocker_violations VARCHAR,
+		new_critical_violations VARCHAR,
+		new_major_violations VARCHAR,
+		new_minor_violations VARCHAR,
+		new_info_violations VARCHAR,
 		false_positive_issues INT,
 		open_issues INT,
 		reopened_issues INT,
@@ -98,20 +118,30 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		sqale_index INT,
 		sqale_rating FLOAT,
 		development_cost FLOAT,
+		new_technical_debt VARCHAR,
 		sqale_debt_ratio FLOAT,
 		new_sqale_debt_ratio FLOAT,
 		code_smells INT,
+		new_code_smells VARCHAR,
 		effort_to_reach_maintainability_rating_a INT,
+		new_maintainability_rating VARCHAR,
 		new_development_cost FLOAT,
 		alert_status VARCHAR,
 		bugs INT,
+		new_bugs VARCHAR,
 		reliability_remediation_effort INT,
+		new_reliability_remediation_effort VARCHAR,
 		reliability_rating FLOAT,
+		new_reliability_rating VARCHAR,
 		last_commit_date TIMESTAMP WITHOUT TIME ZONE,
 		vulnerabilities INT,
+		new_vulnerabilities VARCHAR,
 		security_remediation_effort INT,
+		new_security_remediation_effort VARCHAR,
 		security_rating FLOAT,
+		new_security_rating VARCHAR,
 		security_hotspots INT,
+		new_security_hotspots VARCHAR,
 		security_review_rating FLOAT,
 		classes INT,
 		ncloc INT,
@@ -119,18 +149,27 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		comment_lines INT,
 		comment_lines_density FLOAT,
 		files INT,
+		directories VARCHAR,
 		lines INT,
 		statements INT,
+		generated_lines VARCHAR,
+		generated_ncloc VARCHAR,
+		ncloc_data VARCHAR,
+		comment_lines_data VARCHAR,
+		projects VARCHAR,
 		ncloc_language_distribution VARCHAR,
+		new_lines VARCHAR,
+		processed BOOLEAN DEFAULT FALSE,
 		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);
 	ALTER TABLE sonar_measures OWNER TO pra;
 
 	CREATE TABLE sonar_issues(
-                project VARCHAR NOT NULL, 
-                current_analysis_key VARCHAR,
+		organization VARCHAR NOT NULL,
+		project VARCHAR NOT NULL, 
+		current_analysis_key VARCHAR,
 		creation_analysis_key VARCHAR,
-		issues_key VARCHAR,
+		issue_key VARCHAR,
 		type VARCHAR(20),
 		rule VARCHAR,
 		severity VARCHAR(20),
@@ -142,9 +181,10 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		creation_date TIMESTAMP WITHOUT TIME ZONE,
 		update_date TIMESTAMP WITHOUT TIME ZONE,
 		close_date TIMESTAMP WITHOUT TIME ZONE,
-                ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-        ALTER TABLE sonar_issues OWNER TO pra;	
+		processed BOOLEAN DEFAULT FALSE,
+        ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    ALTER TABLE sonar_issues OWNER TO pra;	
 
 	CREATE TABLE model_performance(
 		model VARCHAR NOT NULL,
@@ -195,6 +235,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 	ALTER TABLE model_info OWNER TO pra;
 
 	CREATE TABLE top_issues(
+		organization VARCHAR NOT NULL,
 		project VARCHAR NOT NULL,
 		model VARCHAR NOT NULL,
 		input_data_amount INT,
