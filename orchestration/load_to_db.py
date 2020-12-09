@@ -11,7 +11,7 @@ import sys, argparse
 from sqlalchemy import create_engine
 from utils import *
 
-def load(file_directory, conn_str):
+def load(file_directory, conn_str, all=False):
 
     print("Start writing CSV files to Database:")
     dirs, dtype_dicts = iter_data_directory(data_dir)
@@ -33,7 +33,12 @@ def load(file_directory, conn_str):
             
         print(f"\tDirectory: {file_directory.absolute()} - Table: {table_name}")
 
-        for file in file_directory.glob("*_staging.csv"):
+        if all:
+            file_filter = "*.csv"
+        else:
+            file_filter = "*_staging.csv"
+
+        for file in file_directory.glob(file_filter):
             if file.exists():
 
                 new_df = pd.read_csv(file.resolve(), dtype = dtype, header = 0)
@@ -47,8 +52,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")
     ap.add_argument("-d","--data-directory", default=f'{project_path}/data' , help="Path to data directory.")
     ap.add_argument("-c","--connection-string", default=f'postgresql+psycopg2://pra:pra@localhost/pra2' , help="Connection string to Database.")
+    ap.add_argument("-a","--all", dest="all" , action="store_true", default=False , help="Whether to load all files including Staging and Archive.")
 
     args = vars(ap.parse_args())
     data_dir = args['data_directory']
     conn_str = args['connection_string']
-    load(data_dir, conn_str)
+    all = args['all']
+    load(data_dir, conn_str, all)
