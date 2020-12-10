@@ -1,8 +1,14 @@
 from collections import OrderedDict
 from pyspark.sql.types import *
 
-CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
-CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
+CONNECTION_OBJECT = {
+    "host" : "localhost",
+    "database" : "pra2",
+    "user" : "pra",
+    "password" : "pra"
+}
+CONNECTION_STR = f"jdbc:postgresql://{CONNECTION_OBJECT['host']}/{CONNECTION_OBJECT['database']}"
+CONNECTION_PROPERTIES = {"user": f"{CONNECTION_OBJECT['user']}", "password": f"{CONNECTION_OBJECT['password']}"}
 
 JENKINS_BUILD_DTYPE = OrderedDict({
     "job" : "object",
@@ -409,6 +415,7 @@ MODEL_INFO_SCHEMA = StructType([
 ])
 
 TOP_ISSUE_SCHEMA = StructType([
+    StructField("organization", StringType()),
     StructField("project", StringType()),
     StructField("model", StringType()),
     StructField("input_data_amount", IntegerType()),
