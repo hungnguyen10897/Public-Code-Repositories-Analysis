@@ -7,13 +7,13 @@ from pathlib import Path
 import time, sys
 
 from spark_constants import *
-from utils import get_batches
+from utils import get_batches, get_data_from_db
 from pyspark.ml.stat import ChiSquareTest
 from pyspark.ml.feature import ChiSqSelector
 from pyspark.ml.classification import DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
 
 from model_3 import prepare_data_ml3
-from common import train_predict
+from model_common import train_predict
 
 conf = SparkConf().setMaster('local[*]')
 sc = SparkContext
@@ -80,20 +80,9 @@ def issue_impact_process(ml_df, columns, project, organization):
         top_issue_df = spark.createDataFrame(data = top_issue_lines, schema = TOP_ISSUE_SCHEMA)
         top_issue_df.write.jdbc(CONNECTION_STR, 'top_issues', mode='append', properties=CONNECTION_PROPERTIES)
 
-def main(spark_artefacts_dir, org_keys, servers):
+def run(spark_artefacts_dir, org_keys, servers):
     
-    sonar_analyses_query = f"""
-        SELECT *
-        FROM sonar_analyses
-        WHERE organization IN ({"'" + "', '".join(org_keys) + "'"})
-    """
-    sonar_analyses = spark.read \
-        .format("jdbc") \
-        .option("url", CONNECTION_STR) \
-        .option("user", CONNECTION_PROPERTIES["user"]) \
-        .option("password", CONNECTION_PROPERTIES["password"]) \
-        .option("query", sonar_analyses_query)\
-        .load()
+    sonar_analyses = get_data_from_db(spark, "sonar_analyses", processed= None, org_server_filter_elements= org_keys, all_columns=True)
     sonar_analyses.persist()
 
     pairs = list(map(lambda x: (x.organization, x.project), sonar_analyses.select("organization","project").distinct().collect()))
@@ -104,39 +93,16 @@ def main(spark_artefacts_dir, org_keys, servers):
         i += 1
         project_sonar_analyses = sonar_analyses.drop("organization", "processed", "ingested_at").filter(sonar_analyses.project == project)
         
-        project_sonar_issues_query = f"""
-            SELECT 
-                {", ".join(SONAR_ISSUES_DTYPE.keys())}
-            FROM sonar_issues
-            WHERE project = '{project}'
-        """
-        project_sonar_issues = spark.read \
-            .format("jdbc") \
-            .option("url", CONNECTION_STR) \
-            .option("user", CONNECTION_PROPERTIES["user"]) \
-            .option("password", CONNECTION_PROPERTIES["password"]) \
-            .option("query", project_sonar_issues_query)\
-            .load()
+        project_sonar_issues = get_data_from_db(spark, "sonar_issues", processed=None, custom_filter=[f"project = '{project}'"], org_server_filter_elements=[organization], all_columns=False)
         project_sonar_issues.persist()
 
-        project_jenkins_builds_query = f"""
-            SELECT 
-                {", ".join(JENKINS_BUILD_DTYPE.keys())} 
-            FROM jenkins_builds 
-            WHERE 
-                server IN ({"'" + "', '".join(servers) + "'"})
-                AND
-                revision_number IN (
+        project_jenkins_builds = get_data_from_db(spark, "jenkins_builds", processed=None, org_server_filter_elements=servers, all_columns=False, \
+            custom_filter=[
+                f"""revision_number IN (
                     SELECT revision FROM sonar_analyses WHERE project = '{project}'
-                )
-        """
-        project_jenkins_builds = spark.read \
-            .format("jdbc") \
-            .option("url", CONNECTION_STR) \
-            .option("user", CONNECTION_PROPERTIES["user"]) \
-            .option("password", CONNECTION_PROPERTIES["password"]) \
-            .option("query", project_jenkins_builds_query)\
-            .load()
+                    )
+                """])
+        project_jenkins_builds.persist()
 
         ml_df, columns = prepare_data_ml3(spark, project_jenkins_builds, project_sonar_issues, project_sonar_analyses, spark_artefacts_dir, "incremental")
 
@@ -166,6 +132,6 @@ if __name__ == "__main__":
         print(f"Processing batch {batch_num}")
         print(f"\tSonarcloud organization keys:\n\t\t" + "\n\t\t".join(org_keys))
         print(f"\tJenkins servers:\n\t\t" + "\n\t\t".join(servers))
-        main(spark_artefacts_dir, org_keys, servers)
+        run(spark_artefacts_dir, org_keys, servers)
 
     print(f"Time elapsed: {time.time() - then}")

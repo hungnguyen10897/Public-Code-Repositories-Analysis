@@ -1,4 +1,6 @@
 import psycopg2
+from spark_constants import JENKINS_BUILD_DTYPE, SONAR_ANALYSES_DTYPE, SONAR_ISSUES_DTYPE, SONAR_MEASURES_DTYPE
+from spark_constants import CONNECTION_STR, CONNECTION_OBJECT, CONNECTION_PROPERTIES
 
 def get_batches(connection_object):
     conn = psycopg2.connect(
@@ -28,3 +30,49 @@ def get_batches(connection_object):
             batches.append((i, org_keys, servers))
         return batches
 
+def get_data_from_db(spark, table, processed, custom_filter=[], org_server_filter_elements=None, all_columns=False):
+
+    if table == "jenkins_builds":
+        dtype = JENKINS_BUILD_DTYPE
+        org_server_filter = "server"
+    elif table == "sonar_analyses":
+        dtype = SONAR_ANALYSES_DTYPE
+        org_server_filter = "organization"
+    elif table == "sonar_issues":
+        dtype = SONAR_ISSUES_DTYPE
+        org_server_filter = "organization"
+    elif table == "sonar_measures":
+        dtype = SONAR_MEASURES_DTYPE
+        org_server_filter = "organization"
+
+    if all_columns:
+        columns = "*"
+    else:    
+        columns = ", ".join(dtype.keys())
+    
+    filters = []
+
+    # Filter accumulation
+    if org_server_filter_elements is not None:
+        filters.append(f"""
+            {org_server_filter} IN ({"'" + "', '".join(org_server_filter_elements) + "'"})
+            """)
+
+    if processed is not None:
+        filters.append(f"processed is {processed}")
+
+    filters += custom_filter
+
+    filter_clause = "" if not filters else "WHERE " + " AND ".join(filters)
+        
+    query = f"SELECT {columns} FROM {table} " + filter_clause
+
+    df = spark.read \
+        .format("jdbc") \
+        .option("url", CONNECTION_STR) \
+        .option("user", CONNECTION_PROPERTIES["user"]) \
+        .option("password", CONNECTION_PROPERTIES["password"]) \
+        .option("query", query)\
+        .load()
+
+    return df
