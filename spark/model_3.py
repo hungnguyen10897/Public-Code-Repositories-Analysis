@@ -9,7 +9,9 @@ from pyspark.sql.types import Row, StringType
 from pathlib import Path
 from collections import OrderedDict
 
-from common import feature_selector_process, train_predict
+from model_common import feature_selector_process, train_predict
+from utils import get_batches, get_data_from_db
+from spark_constants import CONNECTION_OBJECT
 
 def get_ml3_pipeline():
 
@@ -116,29 +118,49 @@ def prepare_data_ml3(spark, jenkins_builds, sonar_issues, sonar_analyses , spark
 
     return ml_df, columns
 
-def apply_ml3(spark, new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
+def apply_ml3(spark, spark_artefacts_dir, run_mode):
+
+    # Getting Data
+    db_jenkins_builds = get_data_from_db(spark, "jenkins_builds", processed=None, all_columns=True)
+    db_sonar_analyses = get_data_from_db(spark, "sonar_analyses", processed=None, all_columns=True, custom_filter=["analysis_key IS NOT NULL"])
+    db_sonar_issues = get_data_from_db(spark, "sonar_issues", processed=None, all_columns=True, custom_filter=["issue_key IS NOT NULL"]) 
+    
+    if run_mode == "incremental":
+        unprocessed_jenkins_builds = db_jenkins_builds.filter(db_jenkins_builds["processed"] == False)
+        unprocessed_sonar_analyses = db_sonar_analyses.filter(db_sonar_analyses["processed"] == False)
+        unprocessed_sonar_issues = db_sonar_issues.filter(db_sonar_issues["processed"] == False)
+
+    # Drop unused columns
+    db_jenkins_builds = db_jenkins_builds.drop("server", "processed", "ingested_at")
+    db_sonar_analyses = db_sonar_analyses.drop("organization", "processed", "ingested_at")
+    db_sonar_issues = db_sonar_issues.drop("organization", "processed", "ingested_at")
+
+    if run_mode == "incremental":
+        unprocessed_jenkins_builds = unprocessed_jenkins_builds.drop("server", "processed", "ingested_at")
+        unprocessed_sonar_analyses = unprocessed_sonar_analyses.drop("organization", "processed", "ingested_at")
+        unprocessed_sonar_issues = unprocessed_sonar_issues.drop("organization", "processed", "ingested_at")
 
     if run_mode == "first":
 
-        ml_df, columns = prepare_data_ml3(spark, new_jenkins_builds, new_sonar_issues, new_sonar_analyses, spark_artefacts_dir, run_mode)
+        ml_df, columns = prepare_data_ml3(spark, db_jenkins_builds, db_sonar_issues, db_sonar_analyses, spark_artefacts_dir, run_mode)
         if ml_df is None:
             print("No data for ML3 - Returning...")
             return
 
     elif run_mode == "incremental":
         
-        ml_df1, columns = prepare_data_ml3(spark, new_jenkins_builds, db_sonar_issues, db_sonar_analyses, spark_artefacts_dir, run_mode)
-        ml_df2, columns = prepare_data_ml3(spark, db_jenkins_builds, new_sonar_issues, db_sonar_analyses, spark_artefacts_dir, run_mode)
+        df1, columns = prepare_data_ml3(spark, unprocessed_jenkins_builds, db_sonar_issues, db_sonar_analyses, spark_artefacts_dir, run_mode)
+        df2, columns = prepare_data_ml3(spark, db_jenkins_builds, unprocessed_sonar_issues, db_sonar_analyses, spark_artefacts_dir, run_mode)
         
-        if ml_df1 is None and ml_df2 is None:
+        if df1 is None and df2 is None:
             print("No data for ML3 - Returning...")
             return
-        elif ml_df1 is None:
-            ml_df = ml_df2
-        elif ml_df2 is None:
-            ml_df = ml_df1
+        elif df1 is None:
+            ml_df = df2
+        elif df2 is None:
+            ml_df = df1
         else:
-            ml_df = ml_df1.union(ml_df2)
+            ml_df = df1.union(df2)
 
     ml_df.persist()
     print(f"DF for ML3 Count: {ml_df.count()}")
