@@ -2,18 +2,16 @@
 # spark-submit --driver-class-path postgresql-42.2.12.jar spark_project.py
 
 from pyspark import SparkContext, SparkConf
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import SparkSession
 from pathlib import Path
 import time, sys
 
-from spark_constants import *
-from utils import get_batches, get_data_from_db
+from utils import *
 from pyspark.ml.stat import ChiSquareTest
 from pyspark.ml.feature import ChiSqSelector
-from pyspark.ml.classification import DecisionTreeClassifier, DecisionTreeClassificationModel, RandomForestClassifier, RandomForestClassificationModel
+from pyspark.ml.classification import DecisionTreeClassifier,  RandomForestClassifier
 
 from model_3 import prepare_data_ml3
-from model_common import train_predict
 
 conf = SparkConf().setMaster('local[*]')
 sc = SparkContext

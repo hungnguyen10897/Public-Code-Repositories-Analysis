@@ -4,9 +4,8 @@ from pyspark.ml.feature import OneHotEncoderEstimator, StringIndexer, StringInde
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.sql.functions import udf
 
-from spark_constants import *
+from utils import *
 from model_common import pipeline_process, feature_selector_process, train_predict, get_categorical_columns
-from utils import get_batches, get_data_from_db
 
 def get_ml1_pipeline():
     stages = []

@@ -10,8 +10,7 @@ from pathlib import Path
 from collections import OrderedDict
 
 from model_common import feature_selector_process, train_predict
-from utils import get_batches, get_data_from_db
-from spark_constants import CONNECTION_OBJECT
+from utils import *
 
 def get_ml3_pipeline():
 

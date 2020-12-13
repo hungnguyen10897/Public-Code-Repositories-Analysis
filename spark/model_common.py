@@ -7,7 +7,7 @@ from pyspark.ml.classification import LogisticRegression, LogisticRegressionMode
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator, BinaryClassificationEvaluator
 from pyspark.ml.linalg import DenseVector
 
-from spark_constants import *
+from utils import *
 
 # For ML model 1 and 2
 def pipeline_process(df, get_pipeline_callback, spark_artefacts_dir, run_mode, i):

@@ -3,20 +3,13 @@
 
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession
-from pyspark.sql.utils import AnalysisException
 
-import pandas as pd
-import numpy as np
 from pathlib import Path
-from collections import OrderedDict
-import time, sys, argparse
+import time, argparse
 
-from spark_constants import *
-from utils import get_data_from_db
 from model_1 import apply_ml1
 from model_2 import apply_ml2
 from model_3 import apply_ml3
-from model_common import train_predict, feature_selector_process, pipeline_process
 
 conf = SparkConf().setMaster('local[*]')
 sc = SparkContext
@@ -39,8 +32,8 @@ def run(spark_artefacts_dir, run_mode):
                         return
 
     # APPLY MACHINE LEARNING
-    # apply_ml1(spark, spark_artefacts_dir, run_mode)
-    # apply_ml2(spark, spark_artefacts_dir, run_mode)
+    apply_ml1(spark, spark_artefacts_dir, run_mode)
+    apply_ml2(spark, spark_artefacts_dir, run_mode)
     apply_ml3(spark, spark_artefacts_dir, run_mode)
 
 if __name__ == "__main__":
