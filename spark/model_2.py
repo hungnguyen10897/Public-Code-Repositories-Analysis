@@ -4,7 +4,7 @@ from pyspark.ml.feature import StringIndexer, VectorAssembler, MinMaxScaler
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.sql.functions import udf
 
-from utils import *
+from spark_utils import *
 from model_common import pipeline_process, feature_selector_process, train_predict
 
 def get_ml2_pipeline():

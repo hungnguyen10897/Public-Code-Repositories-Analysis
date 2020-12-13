@@ -73,7 +73,6 @@ t4_stamp = PythonOperator(
     dag = dag
 )
 
-
 t1_jenkins >> t2
 t1_sonar >> t2
 t2 >> t3

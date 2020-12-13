@@ -6,7 +6,7 @@ from pyspark.sql import SparkSession
 from pathlib import Path
 import time, sys
 
-from utils import *
+from spark_utils import *
 from pyspark.ml.stat import ChiSquareTest
 from pyspark.ml.feature import ChiSqSelector
 from pyspark.ml.classification import DecisionTreeClassifier,  RandomForestClassifier

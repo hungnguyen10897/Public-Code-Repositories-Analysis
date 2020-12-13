@@ -4,7 +4,7 @@ sonar_issues, sonar_measures
 """
 
 import psycopg2
-from utils import CONNECTION_OBJECT
+from orchestration_utils import CONNECTION_OBJECT
 
 def run(connection_object = CONNECTION_OBJECT):
     try:

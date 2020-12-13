@@ -10,7 +10,7 @@ from jenkins_data.fetch_jenkins_data import fetch_jenkins_data
 from sonarcloud_data.fetch_sonarcloud_data import fetch_sonar_data
 
 from pathlib import Path
-from utils import CONNECTION_OBJECT
+from orchestration_utils import CONNECTION_OBJECT
 
 def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{project_path}/data"):
     try:
