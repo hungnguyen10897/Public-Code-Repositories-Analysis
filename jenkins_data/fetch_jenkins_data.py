@@ -12,6 +12,7 @@ import pandas as pd
 from collections import OrderedDict
 
 JENKINS_BUILD_DTYPE = OrderedDict({
+    "server" : "object",
     "job" : "object",
     "build_number" : "Int64",
     "result" : "object",
@@ -42,7 +43,7 @@ def get_projects(path):
     p = Path(path)
     projects = []
     if not p.exists():
-        print("Projects file path {p.resolve()} does not exist. Exiting")
+        print(f"Projects file path {p.resolve()} does not exist. Exiting")
         sys.exit(1)
     with open(p.resolve(), 'r') as f:
         for line in f:
@@ -103,7 +104,7 @@ def process_date_time(time_str):
     
     return ts
 
-def get_data(builds, job_name , server, build_only):
+def get_data(builds, job_name , server, server_url, build_only):
     
     builds_data = []
     tests_data = []
@@ -206,11 +207,11 @@ def get_data(builds, job_name , server, build_only):
         # There can be multiple lines for a build of a job due to multiple commits
         if len(commit_ids_ts) > 0:
             for commit_id, ts in commit_ids_ts.items():
-                build_data = (job_name, build_number, build_result, build_duration, build_estimated_duration, \
+                build_data = (server_url, job_name, build_number, build_result, build_duration, build_estimated_duration, \
                     revision_number, commit_id, ts, build_pass_count, build_fail_count, build_skip_count, build_total_test_duration)
         
         else:
-            build_data = (job_name, build_number, build_result, build_duration, build_estimated_duration, \
+            build_data = (server_url, job_name,  build_number, build_result, build_duration, build_estimated_duration, \
                     revision_number, None, None, build_pass_count, build_fail_count, build_skip_count, build_total_test_duration)
         
         builds_data.append(build_data)
@@ -311,7 +312,7 @@ def get_all_job_names(server):
             job_names.append(name)
     return job_names
 
-def process_jobs(name, is_job, server, first_load, output_dir_str ='./data', build_only = False):
+def process_jobs(name, is_job, server, server_url, first_load, output_dir_str ='./data', build_only = False):
 
     for job_info, latest_build_on_file in get_jobs_info(name, server, is_job, output_dir_str= output_dir_str):
 
@@ -331,7 +332,7 @@ def process_jobs(name, is_job, server, first_load, output_dir_str ='./data', bui
             except JenkinsException as e:
                 print(f"JenkinsException: {e}")
 
-        builds_data, tests_data = get_data(builds, fullName, server, build_only)
+        builds_data, tests_data = get_data(builds, fullName, server, server_url, build_only)
         print(f"\t\t{len(builds_data)} new builds.")
 
         df_builds = None
@@ -353,14 +354,15 @@ def process_jobs(name, is_job, server, first_load, output_dir_str ='./data', bui
        
         write_to_file((fullName,df_builds, df_tests), output_dir_str, build_only)
 
-def fetch_jenkins(all, projects_path, output_path, build_only):
+def fetch_jenkins_data(all, server_url, projects_path, output_path, build_only):
 
     start = time.time()
-    server = jenkins.Jenkins('https://builds.apache.org/')
+    server = jenkins.Jenkins(server_url)
 
     # Sometimes connecting to Jenkins server is banned due to ill use of API
     # Test connection to server
     print(f"Jenkins-API version: {server.get_version()}")
+    print(f"Fetching data from server: {server_url}")
 
     if not all:
         print("Processing projects.")
@@ -374,7 +376,7 @@ def fetch_jenkins(all, projects_path, output_path, build_only):
     for name in names:
         print(f"#{i}")
         i += 1
-        process_jobs(name, all, server, True, output_dir_str = output_path, build_only= build_only)
+        process_jobs(name, all, server, server_url, True, output_dir_str = output_path, build_only= build_only)
 
     end = time.time()
     print(f"Time total: {end-start}")
@@ -383,16 +385,18 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Scrip to fetch data from Apache Jenkins Server at https://builds.apache.org/")
 
-    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default is './data'")
+    ap.add_argument("-o","--output-path", default='./data' , help="Path to output file directory, default to './data'")
     ap.add_argument("-b","--build-only",  help = "Write only build data.", action='store_true')
     ap.add_argument("-p","--projects", help = "Path to a file containing names of all projects to load, if not provided, load data from all jobs available on the server.")
+    ap.add_argument("-s","--server", default="https://builds.apache.org/", help="URL to Jenkins server, default to https://builds.apache.org/")
 
     args = vars(ap.parse_args())
 
     build_only = args['build_only']
     output_path = args['output_path']
     projects_path = None if 'projects' not in args else args['projects']
+    server_url = args['server']
 
     all = True if projects_path is None else False
-    fetch_jenkins(all, projects_path, output_path, build_only)
+    fetch_jenkins_data(all, server_url, projects_path, output_path, build_only)
 

@@ -1,8 +1,24 @@
+import sys, os, psycopg2
+if "PRA_HOME" not in os.environ:
+    print("Please set environment variable PRA_HOME before running.")
+    sys.exit(1)
+
+project_path = os.environ['PRA_HOME']
+
 from collections import OrderedDict
 from pyspark.sql.types import *
+import configparser
+from pathlib import Path
 
-CONNECTION_STR = "jdbc:postgresql://127.0.0.1:5432/pra"
-CONNECTION_PROPERTIES = {"user": "pra", "password": "pra"}
+def get_connection_object():
+    config = configparser.ConfigParser()
+    config.read(Path(project_path).joinpath("config.cfg"))
+
+    return config._sections["DATABASE"]
+
+CONNECTION_OBJECT = get_connection_object()
+CONNECTION_STR = f"jdbc:postgresql://{CONNECTION_OBJECT['host']}/{CONNECTION_OBJECT['database']}"
+CONNECTION_PROPERTIES = {"user": f"{CONNECTION_OBJECT['user']}", "password": f"{CONNECTION_OBJECT['password']}"}
 
 JENKINS_BUILD_DTYPE = OrderedDict({
     "job" : "object",
@@ -363,7 +379,6 @@ ML2_NUMERICAL_COLUMNS = [
     'current_null_severity_security_hotspot'
 ]
 
-
 MODEL_PERFORMANCE_SCHEMA = StructType([
     StructField("model", StringType()),
     StructField("data_amount", IntegerType()),
@@ -409,6 +424,7 @@ MODEL_INFO_SCHEMA = StructType([
 ])
 
 TOP_ISSUE_SCHEMA = StructType([
+    StructField("organization", StringType()),
     StructField("project", StringType()),
     StructField("model", StringType()),
     StructField("input_data_amount", IntegerType()),
@@ -433,3 +449,78 @@ TOP_ISSUE_SCHEMA = StructType([
     StructField("issue_10", StringType()),
     StructField("issue_importance_10", FloatType()),
 ])
+
+def get_batches(connection_object):
+    conn = psycopg2.connect(
+        host=connection_object['host'],
+        database=connection_object['database'],
+        user=connection_object['user'],
+        password=connection_object['password'])
+
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT MAX(batch_number) FROM source")
+    max_batch_num = cursor.fetchone()[0]
+
+    if max_batch_num is None:
+        # No batch
+        return []
+    else:
+        batches = []
+        org_keys = []
+        servers = []
+        # Per batch
+        for i in range(max_batch_num + 1):
+            cursor.execute(f"SELECT sonar_org_key, jenkins_server FROM source WHERE batch_number = {i}")
+            for e in cursor.fetchall():
+                org_keys.append(e[0])
+                servers.append(e[1])
+            batches.append((i, org_keys, servers))
+        return batches
+
+def get_data_from_db(spark, table, processed, custom_filter=[], org_server_filter_elements=None, all_columns=False):
+
+    if table == "jenkins_builds":
+        dtype = JENKINS_BUILD_DTYPE
+        org_server_filter = "server"
+    elif table == "sonar_analyses":
+        dtype = SONAR_ANALYSES_DTYPE
+        org_server_filter = "organization"
+    elif table == "sonar_issues":
+        dtype = SONAR_ISSUES_DTYPE
+        org_server_filter = "organization"
+    elif table == "sonar_measures":
+        dtype = SONAR_MEASURES_DTYPE
+        org_server_filter = "organization"
+
+    if all_columns:
+        columns = "*"
+    else:    
+        columns = ", ".join(dtype.keys())
+    
+    filters = []
+
+    # Filter accumulation
+    if org_server_filter_elements is not None:
+        filters.append(f"""
+            {org_server_filter} IN ({"'" + "', '".join(org_server_filter_elements) + "'"})
+            """)
+
+    if processed is not None:
+        filters.append(f"processed is {processed}")
+
+    filters += custom_filter
+
+    filter_clause = "" if not filters else "WHERE " + " AND ".join(filters)
+        
+    query = f"SELECT {columns} FROM {table} " + filter_clause
+
+    df = spark.read \
+        .format("jdbc") \
+        .option("url", CONNECTION_STR) \
+        .option("user", CONNECTION_PROPERTIES["user"]) \
+        .option("password", CONNECTION_PROPERTIES["password"]) \
+        .option("query", query)\
+        .load()
+
+    return df

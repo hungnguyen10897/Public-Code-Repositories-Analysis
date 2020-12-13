@@ -1,10 +1,13 @@
+import sys, os
+if "PRA_HOME" not in os.environ:
+    print("Please set environment variable PRA_HOME before running.")
+    sys.exit(1)
+
+project_path = os.environ['PRA_HOME']
+
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
-
-import sys
-repo_dir = "/mnt/pra"
-sys.path.append(repo_dir)
 
 from datetime import datetime, timedelta, date
 
@@ -23,7 +26,7 @@ dag = DAG('project_processing', default_args = default_args, schedule_interval =
 t1 = BashOperator(
     task_id = "project_processing",
     dag = dag,
-    bash_command = f"cd {repo_dir}/spark && spark-submit --driver-class-path postgresql-42.2.12.jar spark_project.py"
+    bash_command = f"cd {project_path}/spark && spark-submit --driver-class-path postgresql-42.2.12.jar spark_project.py"
 )
 
 t1

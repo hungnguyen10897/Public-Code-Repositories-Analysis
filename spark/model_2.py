@@ -4,8 +4,8 @@ from pyspark.ml.feature import StringIndexer, VectorAssembler, MinMaxScaler
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.sql.functions import udf
 
-from spark_constants import *
-from common import pipeline_process, feature_selector_process, train_predict
+from utils import *
+from model_common import pipeline_process, feature_selector_process, train_predict
 
 def get_ml2_pipeline():
     stages = []
@@ -42,37 +42,65 @@ def prepare_data_ml2(spark, jenkins_builds, sonar_issues, sonar_analyses):
 
     return df
 
-def apply_ml2(spark, new_jenkins_builds, db_jenkins_builds, new_sonar_issues, db_sonar_issues,  new_sonar_analyses, db_sonar_analyses, spark_artefacts_dir, run_mode):
+def apply_ml2(spark, spark_artefacts_dir, run_mode):
 
     modify_result = udf(lambda x: "SUCCESS" if x == "SUCCESS" else "FAIL", StringType())
     spark.udf.register("modify_result" , modify_result)
 
-    if new_jenkins_builds is not None:
-        new_jenkins_builds = new_jenkins_builds.withColumn("result", modify_result("result"))
-
-    if db_jenkins_builds is not None:
-        db_jenkins_builds = db_jenkins_builds.withColumn("result", modify_result("result"))
-
-    if run_mode == "first":
-        df = prepare_data_ml2(spark, new_jenkins_builds, new_sonar_issues, new_sonar_analyses)
-
-    elif run_mode == "incremental":
-
-        # New jenkins ~ db sonar
-        df1 = prepare_data_ml2(spark, new_jenkins_builds, db_sonar_issues, db_sonar_analyses)
-
-        # New sonar ~ db jenkins
-        df2 = prepare_data_ml2(spark, db_jenkins_builds, new_sonar_issues, db_sonar_analyses)
-
-        df = df1.union(df2)
+    batches = get_batches(CONNECTION_OBJECT)
+    if not batches:
+        print("No batch to process!")
+        return
     
-    df.persist()
-    print(f"DF for ML2 Count: {str(df.count())}")
-    if df.count() == 0:
+    for i, (batch_num, org_keys, servers) in enumerate(batches):
+        print(f"Processing batch {batch_num}")
+        print(f"\tSonarcloud organization keys:\n\t\t" + "\n\t\t".join(org_keys))
+        print(f"\tJenkins servers:\n\t\t" + "\n\t\t".join(servers))
+        
+        # Getting Data
+        db_jenkins_builds = get_data_from_db(spark, "jenkins_builds", processed=None, org_server_filter_elements=servers, all_columns=True)
+        db_sonar_analyses = get_data_from_db(spark, "sonar_analyses", processed=None, org_server_filter_elements=org_keys, all_columns=True, custom_filter=["analysis_key IS NOT NULL"])
+        db_sonar_issues = get_data_from_db(spark, "sonar_issues", processed=None, org_server_filter_elements=org_keys, all_columns=True, custom_filter=["issue_key IS NOT NULL"]) 
+        
+        if run_mode == "incremental":
+            unprocessed_jenkins_builds = db_jenkins_builds.filter(db_jenkins_builds["processed"] == False)
+            unprocessed_sonar_analyses = db_sonar_analyses.filter(db_sonar_analyses["processed"] == False)
+            unprocessed_sonar_issues = db_sonar_issues.filter(db_sonar_issues["processed"] == False)
+
+        # Drop unused columns
+        db_jenkins_builds = db_jenkins_builds.drop("server", "processed", "ingested_at").withColumn("result", modify_result("result"))
+        db_sonar_analyses = db_sonar_analyses.drop("organization", "processed", "ingested_at")
+        db_sonar_issues = db_sonar_issues.drop("organization", "processed", "ingested_at")
+
+        if run_mode == "incremental":
+            unprocessed_jenkins_builds = unprocessed_jenkins_builds.drop("server", "processed", "ingested_at").withColumn("result", modify_result("result"))
+            unprocessed_sonar_analyses = unprocessed_sonar_analyses.drop("organization", "processed", "ingested_at")
+            unprocessed_sonar_issues = unprocessed_sonar_issues.drop("organization", "processed", "ingested_at")
+
+        # Prepare data
+        if run_mode == "first":
+            batch_df = prepare_data_ml2(spark, db_jenkins_builds, db_sonar_issues, db_sonar_analyses)
+
+        elif run_mode == "incremental":
+            # Unprocessed jenkins ~ db sonar
+            df1 = prepare_data_ml2(spark, unprocessed_jenkins_builds, db_sonar_issues, db_sonar_analyses)
+            # Unprocessed sonar ~ db jenkins
+            df2 = prepare_data_ml2(spark, db_jenkins_builds, unprocessed_sonar_issues, db_sonar_analyses)
+            batch_df = df1.union(df2)
+                
+        # Accumulation
+        if i == 0:
+            batches_df = batch_df
+        else:
+            batches_df = batches_df.union(batch_df)
+    
+    batches_df.persist()
+    print(f"DF for ML2 Count: {str(batches_df.count())}")
+    if batches_df.count() == 0:
         print("No data for ML2 - Returning...")
         return
 
-    ml_df,_ = pipeline_process(df, get_ml2_pipeline, spark_artefacts_dir, run_mode, 2)
+    ml_df,_ = pipeline_process(batches_df, get_ml2_pipeline, spark_artefacts_dir, run_mode, 2)
     ml_df.persist()
     ml_df_10, ml_10_columns = feature_selector_process(spark, ml_df, spark_artefacts_dir, run_mode, 2, ML2_NUMERICAL_COLUMNS)
     ml_df_10.persist()
