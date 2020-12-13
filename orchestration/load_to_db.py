@@ -49,7 +49,7 @@ def load(file_directory=f'{project_path}/data', conn_str=CONNECTION_STR, all=Fal
 
 if __name__ == "__main__":
     
-    ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")
+    ap = argparse.ArgumentParser(description="Script to load CSV files to Database.")
     ap.add_argument("-d","--data-directory", default=f'{project_path}/data' , help="Path to data directory.")
     ap.add_argument("-a","--all", dest="all" , action="store_true", default=False , help="Whether to load all files including Staging and Archive.")
 
