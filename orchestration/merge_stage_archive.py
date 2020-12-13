@@ -10,7 +10,7 @@ from pathlib import Path
 import sys, argparse
 from utils import iter_data_directory
 
-def merge(data_dir):
+def merge(data_dir=f'{project_path}/data'):
 
     dirs, dtype_dicts = iter_data_directory(data_dir)
     print("Start merging files in directory:")

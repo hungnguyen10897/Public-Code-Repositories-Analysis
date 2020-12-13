@@ -11,7 +11,7 @@ import sys, argparse
 from sqlalchemy import create_engine
 from utils import *
 
-def load(file_directory, conn_str=CONNECTION_STR, all=False):
+def load(file_directory=f'{project_path}/data', conn_str=CONNECTION_STR, all=False):
 
     print("Start writing CSV files to Database:")
     dirs, dtype_dicts = iter_data_directory(data_dir)
