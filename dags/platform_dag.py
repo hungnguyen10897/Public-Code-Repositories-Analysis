@@ -5,7 +5,7 @@ if "PRA_HOME" not in os.environ:
 
 project_path = os.environ['PRA_HOME']
 sys.path.append(project_path)
-# sys.path.append(project_path + "/orchestration")
+sys.path.append(project_path + "/orchestration")
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, date
 default_args = {
     'owner': 'hung',
     'depends_on_past': False,
-    'start_date': datetime(2020,9,28),
+    'start_date': datetime(2020,12,23),
     'email': ['hung.nguyen@tuni.fi'],
     'email_on_failure': True,
     'retries': 1,
@@ -61,7 +61,7 @@ t4_merge = PythonOperator(
     task_id = 'merge_stage_archive',
     provide_context=False,
     python_callable= merge_stage_archive.merge,
-    op_args=[f"{project_path}/data"],
+    # op_args=[f"{project_path}/data"],
     dag = dag
 )
 

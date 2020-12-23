@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, date
 default_args = {
     'owner': 'hung',
     'depends_on_past': False,
-    'start_date': datetime(2020,10,26),
+    'start_date': datetime(2020,12,23),
     'email': ['hung.nguyen@tuni.fi'],
     'email_on_failure': True,
     'retries': 1,
