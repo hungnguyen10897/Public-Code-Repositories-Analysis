@@ -61,7 +61,7 @@ t4_merge = PythonOperator(
     task_id = 'merge_stage_archive',
     provide_context=False,
     python_callable= merge_stage_archive.merge,
-    # op_args=[],
+    op_args=[f"{project_path}/data"],
     dag = dag
 )
 
