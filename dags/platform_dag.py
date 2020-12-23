@@ -5,13 +5,13 @@ if "PRA_HOME" not in os.environ:
 
 project_path = os.environ['PRA_HOME']
 sys.path.append(project_path)
-sys.path.append(project_path + "/orchestration")
+# sys.path.append(project_path + "/orchestration")
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 
-import fetch_data, load_to_db, merge_stage_archive, stamp
+from orchestration import fetch_data, load_to_db, merge_stage_archive, stamp
 
 from datetime import datetime, timedelta, date
 
