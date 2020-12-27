@@ -15,14 +15,10 @@ def run(connection_object = CONNECTION_OBJECT):
             password=connection_object["password"])
         cursor = conn.cursor()
 
-        print("Stamping jenkins_builds")
-        cursor.execute("UPDATE jenkins_builds SET processed = TRUE")
-        print("Stamping sonar_analyses")
-        cursor.execute("UPDATE sonar_analyses SET processed = TRUE")
-        print("Stamping sonar_issues")
-        cursor.execute("UPDATE sonar_issues SET processed = TRUE")
-        print("Stamping sonar_measures")
-        cursor.execute("UPDATE sonar_measures SET processed = TRUE")
+        for table in ['jenkins_builds', 'sonar_analyses', 'sonar_issues', 'sonar_measures']:
+            cursor.execute(f"UPDATE {table} SET processed = TRUE")
+            cursor.commit()
+            print(f"Stamping {table} - {cursor.rowcount} records updated")
 
     except (Exception, psycopg2.Error) as error:
         print(f"Error while connectiong to PRA database: {error}")
