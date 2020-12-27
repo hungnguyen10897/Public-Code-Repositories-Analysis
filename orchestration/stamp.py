@@ -17,7 +17,7 @@ def run(connection_object = CONNECTION_OBJECT):
 
         for table in ['jenkins_builds', 'sonar_analyses', 'sonar_issues', 'sonar_measures']:
             cursor.execute(f"UPDATE {table} SET processed = TRUE")
-            cursor.commit()
+            conn.commit()
             print(f"Stamping {table} - {cursor.rowcount} records updated")
 
     except (Exception, psycopg2.Error) as error:
