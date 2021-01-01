@@ -35,7 +35,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		test_skip_count INT,
 		total_test_duration FLOAT,
 		processed BOOLEAN DEFAULT FALSE,
-		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		ingested_at DATE DEFAULT CURRENT_DATE
 	);
 	ALTER TABLE jenkins_builds OWNER TO pra;
 
@@ -47,7 +47,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		project_version VARCHAR,
 		revision VARCHAR,
 		processed BOOLEAN DEFAULT FALSE,
-		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		ingested_at DATE DEFAULT CURRENT_DATE
 	);
 	ALTER TABLE sonar_analyses OWNER TO pra;
 
@@ -160,7 +160,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		ncloc_language_distribution VARCHAR,
 		new_lines INT,
 		processed BOOLEAN DEFAULT FALSE,
-		ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		ingested_at DATE DEFAULT CURRENT_DATE
 	);
 	ALTER TABLE sonar_measures OWNER TO pra;
 
@@ -182,7 +182,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 		update_date TIMESTAMP WITHOUT TIME ZONE,
 		close_date TIMESTAMP WITHOUT TIME ZONE,
 		processed BOOLEAN DEFAULT FALSE,
-        ingested_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        ingested_at DATE DEFAULT CURRENT_DATE
     );
     ALTER TABLE sonar_issues OWNER TO pra;	
 
