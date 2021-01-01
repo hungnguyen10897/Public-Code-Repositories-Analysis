@@ -119,7 +119,7 @@ if __name__ == "__main__":
     artefacts_path = Path(spark_artefacts_dir)
     if not artefacts_path.exists():
         print(f"Path to spark_artefacts at '{artefacts_path.absolute()}' does not exists(). Cancelling!")
-        sys.exit(0)
+        sys.exit(1)
 
     then = time.time()
 
