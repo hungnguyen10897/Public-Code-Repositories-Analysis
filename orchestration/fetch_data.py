@@ -7,7 +7,7 @@ project_path = os.environ['PRA_HOME']
 sys.path.append(project_path)
 
 # Sonar Miner path
-sys.path.append("")
+sys.path.append("/mnt/sonar_miner")
 
 from jenkins_data.fetch_jenkins_data import fetch_jenkins_data
 from sonar_src import fetch_sonar_data
