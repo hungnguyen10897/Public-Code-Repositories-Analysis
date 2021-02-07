@@ -6,8 +6,11 @@ if "PRA_HOME" not in os.environ:
 project_path = os.environ['PRA_HOME']
 sys.path.append(project_path)
 
+# Sonar Miner path
+sys.path.append("")
+
 from jenkins_data.fetch_jenkins_data import fetch_jenkins_data
-from sonarcloud_data.fetch_sonarcloud_data import fetch_sonar_data
+from sonar_src import fetch_sonar_data
 
 from pathlib import Path
 from orchestration_utils import CONNECTION_OBJECT
@@ -59,5 +62,5 @@ if __name__ == "__main__":
 
     args = vars(ap.parse_args())
     data_dir = args['data_directory']
-    # run("sonarcloud",data_dir=data_dir)
+    run("sonarcloud",data_dir=data_dir)
     run("jenkins",data_dir=data_dir)
