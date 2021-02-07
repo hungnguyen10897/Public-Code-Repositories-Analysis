@@ -18,12 +18,10 @@ def load(data_dir=f'{project_path}/data', conn_str=CONNECTION_STR, all=False):
 
     for file_directory, dtype in zip(dirs, dtype_dicts):
         if not file_directory.exists():
-            return
+            continue
 
         if dtype == JENKINS_BUILD_DTYPE:
             table_name = "jenkins_builds"
-        elif dtype == JENKINS_TEST_DTYPE:
-            table_name = "jenkins_tests"
         elif dtype == SONAR_ANALYSES_DTYPE:
             table_name = "sonar_analyses"
         elif dtype == SONAR_ISSUES_DTYPE:
@@ -41,7 +39,7 @@ def load(data_dir=f'{project_path}/data', conn_str=CONNECTION_STR, all=False):
         for file in file_directory.glob(file_filter):
             if file.exists():
 
-                new_df = pd.read_csv(file.resolve(), dtype = dtype, header = 0)
+                new_df = pd.read_csv(file.resolve(), usecols = list(dtype.keys()),dtype = dtype, header = 0)
                 # load to DB
 
                 engine = create_engine(conn_str)

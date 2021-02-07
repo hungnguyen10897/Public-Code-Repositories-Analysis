@@ -24,16 +24,6 @@ JENKINS_BUILD_DTYPE = {
     "total_test_duration" : "float64"
 }
 
-JENKINS_TEST_DTYPE = {
-    "job" : "object",
-    "build_number" : "Int64",
-    "package" : "object",
-    "class" : "object",
-    "name" : "object",
-    "duration" : "float64",
-    "status" : "object"
-}
-
 SONAR_ANALYSES_DTYPE = {
     "organization" : "object",
     "project" : "object", 
@@ -194,10 +184,9 @@ def iter_data_directory(data_dir):
     for server_dir in jenkins_data_path.iterdir():
         assert(server_dir.is_dir())
         server_builds_dir = server_dir.joinpath("builds")
-        server_tests_dir = server_dir.joinpath("tests")
 
-        dirs += [server_builds_dir, server_tests_dir]
-        dtype_dicts += [JENKINS_BUILD_DTYPE, JENKINS_TEST_DTYPE]
+        dirs += [server_builds_dir]
+        dtype_dicts += [JENKINS_BUILD_DTYPE]
 
     return dirs, dtype_dicts
 
