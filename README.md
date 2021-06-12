@@ -40,7 +40,7 @@ In details, <span style="font-variant:small-caps;">Pandora</span> provides diffe
 
 ![alt text][logo]
 
-[logo]: https://github.com/clowee/PANDORA/images/pandora_design.png "PANDORA design"
+[logo]: https://raw.githubusercontent.com/clowee/PANDORA/master/images/pandora_design.png "PANDORA design"
 
 ## How To Install 
 ### Software Requirements 
