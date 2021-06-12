@@ -38,7 +38,9 @@ In details, <span style="font-variant:small-caps;">Pandora</span> provides diffe
 
 ## PANDORA Overall Design 
 
-describe the architecture and add the figure 
+![alt text][logo]
+
+[logo]: https://github.com/PANDORA/images/pandora_design.png "PANDORA design"
 
 ## How To Install 
 ### Software Requirements 
