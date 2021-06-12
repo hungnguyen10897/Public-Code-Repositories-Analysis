@@ -23,13 +23,17 @@ In details, <span style="font-variant:small-caps;">Pandora</span> provides diffe
 
 + ___Repository Mining___: aimed at Extracting information from repository, Transform and Load into the database (ETL). The process is based on ETL plugin that can be either API based, or executed on the locally cloned repositories. 
 
-\item \textit{Data Analysis} enables to integrate data-analysis plugins that will be executed in Apache Spark~\footnote{https://spark.apache.org}, each using a specific methodology (Machine Learning/Statistical Analysis) to solve a specific task. 
 
-\item \textit{Dashboard}: visualization tool based on Apache Superset~\footnote{\label{Superset} https://superset.apache.org} , used for inspecting and visualize the data and the results of the analysis performed in the Data Analysis block.
++ ___Data Analysis___: enables to integrate data-analysis plugins that will be executed in [Apache Spark](https://spark.apache.org), each using a specific methodology (Machine Learning/Statistical Analysis) to solve a specific task. 
 
-\item \textit{Scheduler}: based on Apache AirFlow~\footnote{https://airflow.apache.org}, aimed to interact with the other blocks in order to schedule the execution of (i) the repository mining, and (ii) the training/fitting of the models used in the Data Analysis block.  
 
-\item \textit{Download Platform} to enable the download of the dataset collected.
++ ___Dashboard___: visualization tool based on [Apache Superset](https://superset.apache.org) , used for inspecting and visualize the data and the results of the analysis performed in the Data Analysis block.
+
+
++ ___Scheduler___: based on [Apache AirFlow](https://airflow.apache.org), aimed to interact with the other blocks in order to schedule the execution of (i) the repository mining, and (ii) the training/fitting of the models used in the Data Analysis block.  
+
+
++ __Download Platform__: to enable the download of the dataset collected.
 
 
 ## PANDORA Overall Design 
