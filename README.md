@@ -42,17 +42,5 @@ In details, <span style="font-variant:small-caps;">Pandora</span> provides diffe
 
 [logo]: https://raw.githubusercontent.com/clowee/PANDORA/master/images/pandora_design.png "PANDORA design"
 
-## How To Install 
-### Software Requirements 
 
-
-
-
-## Plug-ins development 
-
-### How to create new ETL plug-ins 
-
-### How to create new analysis plug-ins
-
-### How to add dashboard components 
 
