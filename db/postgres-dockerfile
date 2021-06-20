@@ -1,7 +1,7 @@
 FROM postgres:10
 
-ENV POSTGRES_USER hung
-ENV POSTGRES_PASSWORD hung
-ENV POSTGRES_DB hung
+ENV POSTGRES_USER admin
+ENV POSTGRES_PASSWORD admin
+ENV POSTGRES_DB admin
 
 COPY init-user-db.sh /docker-entrypoint-initdb.d/init-user-db.sh
