@@ -2,13 +2,8 @@ import sys, argparse, psycopg2
 from pathlib import Path
 
 from ...utils import PROJECT_PATH, CONNECTION_OBJECT
-sys.path.append(PROJECT_PATH)
-
-# Sonar Miner path
-sys.path.append("/mnt/sonar_miner")
-
 from ...extractors.jenkins import fetch_jenkins_data
-from sonar_src import fetch_sonar_data
+from ...extractors.sonarqube.sonar_src import fetch_organization_sonar_data
 
 def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PROJECT_PATH}/data"):
     try:
@@ -26,7 +21,7 @@ def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PROJECT_PAT
             for row in sonar_org_keys:
                 key = row[0]
                 path = Path(data_dir).joinpath("sonarcloud").joinpath(key).absolute()
-                fetch_sonar_data(path, organization=key)
+                fetch_organization_sonar_data(output_path= path, organization=key)
 
         elif source == "jenkins":
             cursor.execute("SELECT DISTINCT jenkins_server FROM source")

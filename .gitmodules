@@ -1,0 +1,3 @@
+[submodule "extractors/sonarqube"]
+	path = extractors/sonarqube
+	url = https://github.com/hungnguyen10897/sonarqube-miner
