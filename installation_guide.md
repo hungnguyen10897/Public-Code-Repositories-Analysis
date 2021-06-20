@@ -4,12 +4,20 @@ This guide provides necessary steps and information to successfully install the 
 
 ## Prerequisites
 
-## Step 1: Environment Varialbes
+## Step 1: Submodules' initialization
 
-## Step 1: Backend Database
+There are/will be some parts of this project, e.g the sonarqube extractor, which are developed as separate projects and included as a [git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules). Therefore, after cloning the project repository, we need to initialize all of these submodules:
 
-## Step 2: Python Environment
+```
+git submodule update --init --recursive
+```
 
-## Step 3: Airflow Pipelines
+## Step 2: Environment Varialbes
 
-## Step 4: Superset UI
+## Step 3: Backend Database
+
+## Step 4: Python Environment
+
+## Step 5: Airflow Pipelines
+
+## Step 6: Superset UI
