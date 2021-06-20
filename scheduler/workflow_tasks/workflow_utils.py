@@ -1,12 +1,8 @@
 import sys, os
-if "PRA_HOME" not in os.environ:
-    print("Please set environment variable PRA_HOME before running.")
-    sys.exit(1)
-
-project_path = os.environ['PRA_HOME']
-
 from pathlib import Path
 import configparser
+
+from ...utils import CONNECTION_OBJECT
 
 JENKINS_BUILD_DTYPE = {
     "server" : "object",
@@ -190,11 +186,4 @@ def iter_data_directory(data_dir):
 
     return dirs, dtype_dicts
 
-def get_connection_object():
-    config = configparser.ConfigParser()
-    config.read(Path(project_path).joinpath("config.cfg"))
-
-    return config._sections["DATABASE"]
-
-CONNECTION_OBJECT = get_connection_object()
 CONNECTION_STR = f"postgresql+psycopg2://{CONNECTION_OBJECT['user']}:{CONNECTION_OBJECT['password']}@{CONNECTION_OBJECT['host']}/{CONNECTION_OBJECT['database']}"

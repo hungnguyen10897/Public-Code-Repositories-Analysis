@@ -1,21 +1,16 @@
-import sys, os, argparse, psycopg2
-if "PRA_HOME" not in os.environ:
-    print("Please set environment variable PRA_HOME before running.")
-    sys.exit(1)
+import sys, argparse, psycopg2
+from pathlib import Path
 
-project_path = os.environ['PRA_HOME']
-sys.path.append(project_path)
+from ...utils import PROJECT_PATH, CONNECTION_OBJECT
+sys.path.append(PROJECT_PATH)
 
 # Sonar Miner path
 sys.path.append("/mnt/sonar_miner")
 
-from jenkins_data.fetch_jenkins_data import fetch_jenkins_data
+from ...extractors.jenkins import fetch_jenkins_data
 from sonar_src import fetch_sonar_data
 
-from pathlib import Path
-from orchestration_utils import CONNECTION_OBJECT
-
-def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{project_path}/data"):
+def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PROJECT_PATH}/data"):
     try:
         conn = psycopg2.connect(
             host=connection_object["host"],
@@ -58,7 +53,7 @@ def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{project_pat
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Script to fetch new data from Jenkins and Sonarcli.")
-    ap.add_argument("-d","--data-directory", default=f'{project_path}/data' , help="Path to data directory.")
+    ap.add_argument("-d","--data-directory", default=f'{PROJECT_PATH}/data' , help="Path to data directory.")
 
     args = vars(ap.parse_args())
     data_dir = args['data_directory']

@@ -1,19 +1,10 @@
-import sys, os
-if "PRA_HOME" not in os.environ:
-    print("Please set environment variable PRA_HOME before running.")
-    sys.exit(1)
-
-project_path = os.environ['PRA_HOME']
-sys.path.append(project_path)
-sys.path.append(project_path + "/orchestration")
-
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
+from datetime import datetime, timedelta
 
-from orchestration import fetch_data, load_to_db, merge_stage_archive, stamp
-
-from datetime import datetime, timedelta, date
+from ...utils import PROJECT_PATH
+from ...scheduler.workflow_tasks import fetch_data, load_to_db, merge_stage_archive, stamp
 
 default_args = {
     'owner': 'hung',
@@ -54,14 +45,14 @@ t2 = PythonOperator(
 t3 = BashOperator(
     task_id = "spark_processing",
     dag = dag,
-    bash_command = f"cd {project_path}/spark && spark-submit --driver-class-path postgresql-42.2.12.jar spark.py"
+    bash_command = f"cd {PROJECT_PATH}/spark && spark-submit --driver-class-path postgresql-42.2.12.jar spark.py"
 )
 
 t4_merge = PythonOperator(
     task_id = 'merge_stage_archive',
     provide_context=False,
     python_callable= merge_stage_archive.merge,
-    # op_args=[f"{project_path}/data"],
+    # op_args=[f"{PROJECT_PATH}/data"],
     dag = dag
 )
 

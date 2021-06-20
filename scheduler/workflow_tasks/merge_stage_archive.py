@@ -1,16 +1,12 @@
 import sys, os
-if "PRA_HOME" not in os.environ:
-    print("Please set environment variable PRA_HOME before running.")
-    sys.exit(1)
-
-project_path = os.environ['PRA_HOME']
-
 import pandas as pd
 from pathlib import Path
 import sys, argparse
-from orchestration_utils import iter_data_directory
 
-def merge(data_dir=f'{project_path}/data'):
+from .workflow_utils import iter_data_directory
+from ...utils import PROJECT_PATH
+
+def merge(data_dir=f'{PROJECT_PATH}/data'):
 
     dirs, dtype_dicts = iter_data_directory(data_dir)
     print("Start merging files in directory:")
@@ -38,7 +34,7 @@ def merge(data_dir=f'{project_path}/data'):
 if __name__ == "__main__":
     
     ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")
-    ap.add_argument("-d","--data-directory", default=f'{project_path}/data' , help="Path to data directory.")
+    ap.add_argument("-d","--data-directory", default=f'{PROJECT_PATH}/data' , help="Path to data directory.")
 
     args = vars(ap.parse_args())
     data_dir = args['data_directory']
