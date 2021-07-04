@@ -11,10 +11,3 @@ services:
      - "0.0.0.0:5432:5432"
     volumes:
       - ./db_home:/var/lib/postgresql/data
-    networks:
-      - PRA_net
-
-networks:
-  PRA_net:      
-    external: true
-    name: PRA_net
