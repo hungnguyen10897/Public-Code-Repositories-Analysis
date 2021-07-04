@@ -6,7 +6,7 @@ pyspark --conf spark.executor.extraClassPath=sqlite-jdbc-3.30.1.jar --driver-cla
 ## PostgreSQL
 - Starting Postgres in directory 'db'
 - The script init-user-db.sh (database definition) is only run the first time (i.e folder/volume db_home does not exist) the image is initialized.
-- To apply changes in init-user-db.sh (e.g changing schema),, remove the bind mount as well as the service's container and image. reset_db.sh automatically achieves this, but will remove all existing.
+- To apply changes in init-user-db.sh (e.g changing schema), remove the bind mount as well as the service's container and image. reset_db.sh automatically performs this, but will remove all existing.
 $ docker network create PRA_net
 $ docker-compose up
 
@@ -43,3 +43,10 @@ export PYSPARK_PYTHON=[PATH_TO_PYTHON_EXECUTABLE]
 export PYSPARK_DRIVER_PYTHON=[PATH_TO_PYTHON_EXECUTABLE]
 to $SPARK_HOME/conf/spark-envs.sh in case of weird error while debugging
 
+## Superset
+- Superset Home: /home/hung/.local/lib/python3.6/site-packages/superset && Superset Config: /home/hung/.local/lib/python3.6/site-packages/superset_config.py
+- supervisord runs and monitors gunicorn, which runs superset (not Nginx)
+- supervisord config for Superset: /etc/supervisor/conf.d/superset.conf
+- Apply changes to Superset config
+# sudo supervisorctl reload  //OR
+# sudo service supervisor restart
