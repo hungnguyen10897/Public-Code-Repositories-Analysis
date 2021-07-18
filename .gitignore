@@ -19,3 +19,6 @@ spark_artefacts
 # Temporary for git module
 git/**
 **/test_data/**
+
+# Pyenv
+.python-version
