@@ -40,7 +40,12 @@ Postgres root user can be changed in `db/postgres-dockerfile` by setting `POSTGR
 A new directory `db/db_home` is created and mounted to the container, containing underlying data for persistence.
 ## Step 4: Python Environment
 
+The tool is develoepd and run on Python 3.6.9
 
+To install all necessary packages: 
+```
+pip install -r requirements.txt
+```
 ## Step 5: Airflow Pipelines
 
 ## Step 6: Superset UI
