@@ -45,7 +45,7 @@ importlib-metadata==1.7.0
 incremental==16.10.1
 iso8601==0.1.12
 itsdangerous==1.1.0
-Jinja2==2.10.3
+Jinja2==2.11.3
 json-merge-patch==0.2
 jsonpatch==1.16
 jsonpointer==1.10
