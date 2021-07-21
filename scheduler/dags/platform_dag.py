@@ -3,20 +3,20 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from datetime import datetime, timedelta
 
-from ...utils import PROJECT_PATH
+from ...utils import PROJECT_PATH, AIRFLOW_CONFIG
 from ...scheduler.workflow_tasks import fetch_data, load_to_db, merge_stage_archive, stamp
 
 default_args = {
     'owner': 'hung',
     'depends_on_past': False,
-    'start_date': datetime(2020,12,23),
-    'email': ['hung.nguyen@tuni.fi'],
-    'email_on_failure': True,
+    'start_date': datetime.strptime(AIRFLOW_CONFIG["start_date"], "%Y-%m-%d"),
+    'email': [AIRFLOW_CONFIG["email"]],
+    'email_on_failure': bool(AIRFLOW_CONFIG["email_on_failure"]),
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
 
-dag = DAG('platform', default_args = default_args, schedule_interval = '0 0 */3 * *')
+dag = DAG('platform', default_args = default_args, schedule_interval = AIRFLOW_CONFIG["platform_dag_interval"])
 
 t1_jenkins = PythonOperator(
     task_id = 'fetch_jenkins_data',

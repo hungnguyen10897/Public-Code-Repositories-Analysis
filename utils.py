@@ -12,3 +12,4 @@ config = configparser.ConfigParser()
 config.read(Path(PROJECT_PATH).joinpath("config.cfg"))
 
 CONNECTION_OBJECT = config._sections["DATABASE"]
+AIRFLOW_CONFIG = config._sections["AIRFLOW"]
