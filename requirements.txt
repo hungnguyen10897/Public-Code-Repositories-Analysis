@@ -17,7 +17,7 @@ configobj==5.0.6
 configparser==3.5.3
 constantly==15.1.0
 croniter==0.3.34
-cryptography==2.1.4
+cryptography==3.3.2
 defusedxml==0.6.0
 dill==0.3.2
 dnspython==2.0.0
