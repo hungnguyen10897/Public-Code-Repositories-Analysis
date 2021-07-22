@@ -8,6 +8,7 @@ This guide provides necessary steps and information to install the platform. Eac
 Some tools that should be pre-installed before starting the guide:
     - Docker
     - Docker-compose
+    - Apache Superset
     
 ## Step 1: Git and submodule initialization
 
@@ -44,8 +45,47 @@ The tool is develoepd and run on Python 3.6.9
 
 To install all necessary packages: 
 ```
+python -m pip install -U pip
 pip install -r requirements.txt
 ```
 ## Step 5: Airflow Pipelines
+
+### 5a: Installing Apache Airflow
+**Note**: You can skip this part if you use your own Airflow installation
+
+Make sure you are using Python 3 and corresponding `pip`
+
+```
+export AIRFLOW_HOME=[YOUR_AIRFLOW_HOME]
+python -m pip install -U pip
+pip install apache-airflow
+```
+
+Change some Airflow configurations, in file `$AIRFLOW_HOME/airflow.cfg` find and change the following configurations:
+
+```
+...
+sql_alchemy_conn = postgresql+psycopg2://airflow:airflow@localhost:5432
+...
+load_examples = False
+...
+```
+
+Initialize Airflow:
+```
+airflow db init
+```
+
+### 5b: Installing and Configuring Airflow DAGs
+
+Change `config.cfg` file, espescially the `start_date` config under `[AIRFLOW]`, it should be the date of installation. There should be some more configurations if you want `email_on_failure`, details [here](https://helptechcommunity.wordpress.com/2020/04/04/airflow-email-configuration/). The `_interval` values specify how often the DAGs got triggered, they have cron-job syntax.
+
+After installing airflow, an environment variable `AIRFLOW_HOME` is exported, poiting to the home directory of Airflow. Then we need to bring DAG files (`.py` files) under `scheduler/dags` to `AIRFLOW_HOME/dags` directory by creating 2 symbolic links
+
+at `PRA_HOME`:
+```
+ln -s scheduler/dags/platform_dag.py $AIRFLOW_HOME/dags/platform_dag.py
+ln -s scheduler/dags/project_process_dag.py $AIRFLOW_HOME/dags/project_process_dag.py
+```
 
 ## Step 6: Superset UI
