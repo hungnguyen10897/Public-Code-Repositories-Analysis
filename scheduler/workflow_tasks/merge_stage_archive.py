@@ -4,9 +4,9 @@ from pathlib import Path
 import sys, argparse
 
 from .workflow_utils import iter_data_directory
-from ...utils import PROJECT_PATH
+from ...utils import PRA_HOME
 
-def merge(data_dir=f'{PROJECT_PATH}/data'):
+def merge(data_dir=f'{PRA_HOME}/data'):
 
     dirs, dtype_dicts = iter_data_directory(data_dir)
     print("Start merging files in directory:")
@@ -34,7 +34,7 @@ def merge(data_dir=f'{PROJECT_PATH}/data'):
 if __name__ == "__main__":
     
     ap = argparse.ArgumentParser(description="Script to merge staging and archive files.")
-    ap.add_argument("-d","--data-directory", default=f'{PROJECT_PATH}/data' , help="Path to data directory.")
+    ap.add_argument("-d","--data-directory", default=f'{PRA_HOME}/data' , help="Path to data directory.")
 
     args = vars(ap.parse_args())
     data_dir = args['data_directory']

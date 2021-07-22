@@ -1,11 +1,11 @@
 import sys, argparse, psycopg2
 from pathlib import Path
 
-from ...utils import PROJECT_PATH, CONNECTION_OBJECT
+from ...utils import PRA_HOME, CONNECTION_OBJECT
 from ...extractors.jenkins import fetch_jenkins_data
 from ...extractors.sonarqube.sonar_src import fetch_organization_sonar_data
 
-def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PROJECT_PATH}/data"):
+def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PRA_HOME}/data"):
     try:
         conn = psycopg2.connect(
             host=connection_object["host"],
@@ -48,7 +48,7 @@ def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PROJECT_PAT
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Script to fetch new data from Jenkins and Sonarcli.")
-    ap.add_argument("-d","--data-directory", default=f'{PROJECT_PATH}/data' , help="Path to data directory.")
+    ap.add_argument("-d","--data-directory", default=f'{PRA_HOME}/data' , help="Path to data directory.")
 
     args = vars(ap.parse_args())
     data_dir = args['data_directory']

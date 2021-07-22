@@ -80,12 +80,12 @@ airflow db init
 
 Change `config.cfg` file, espescially the `start_date` config under `[AIRFLOW]`, it should be the date of installation. There should be some more configurations if you want `email_on_failure`, details [here](https://helptechcommunity.wordpress.com/2020/04/04/airflow-email-configuration/). The `_interval` values specify how often the DAGs got triggered, they have cron-job syntax.
 
-After installing airflow, an environment variable `AIRFLOW_HOME` is exported, poiting to the home directory of Airflow. Then we need to bring DAG files (`.py` files) under `scheduler/dags` to `AIRFLOW_HOME/dags` directory by creating 2 symbolic links
+After installing airflow, an environment variable `AIRFLOW_HOME` is exported, poiting to the home directory of Airflow. Then we need to bring DAG files (`.py` files) under `scheduler/dags` to `AIRFLOW_HOME/dags` directory by creating 2 hard links
 
 at `PRA_HOME`:
 ```
-ln -s scheduler/dags/platform_dag.py $AIRFLOW_HOME/dags/platform_dag.py
-ln -s scheduler/dags/project_process_dag.py $AIRFLOW_HOME/dags/project_process_dag.py
+ln scheduler/dags/platform_dag.py $AIRFLOW_HOME/dags/platform_dag.py
+ln scheduler/dags/project_process_dag.py $AIRFLOW_HOME/dags/project_process_dag.py
 ```
 
 ## Step 6: Superset UI

@@ -3,9 +3,9 @@ import  argparse
 from sqlalchemy import create_engine
 
 from .workflow_utils import *
-from ...utils import PROJECT_PATH
+from ...utils import PRA_HOME
 
-def load(data_dir=f'{PROJECT_PATH}/data', conn_str=CONNECTION_STR, all=False):
+def load(data_dir=f'{PRA_HOME}/data', conn_str=CONNECTION_STR, all=False):
 
     print("Start writing CSV files to Database:")
     dirs, dtype_dicts = iter_data_directory(data_dir)
@@ -42,7 +42,7 @@ def load(data_dir=f'{PROJECT_PATH}/data', conn_str=CONNECTION_STR, all=False):
 if __name__ == "__main__":
     
     ap = argparse.ArgumentParser(description="Script to load CSV files to Database.")
-    ap.add_argument("-d","--data-directory", default=f'{PROJECT_PATH}/data' , help="Path to data directory.")
+    ap.add_argument("-d","--data-directory", default=f'{PRA_HOME}/data' , help="Path to data directory.")
     ap.add_argument("-a","--all", dest="all" , action="store_true", default=False , help="Whether to load all files including Staging and Archive.")
 
     args = vars(ap.parse_args())
