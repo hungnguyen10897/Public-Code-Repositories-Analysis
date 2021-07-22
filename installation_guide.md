@@ -71,11 +71,6 @@ load_examples = False
 ...
 ```
 
-Initialize Airflow:
-```
-airflow db init
-```
-
 ### 5b: Installing and Configuring Airflow DAGs
 
 Change `config.cfg` file, espescially the `start_date` config under `[AIRFLOW]`, it should be the date of installation. There should be some more configurations if you want `email_on_failure`, details [here](https://helptechcommunity.wordpress.com/2020/04/04/airflow-email-configuration/). The `_interval` values specify how often the DAGs got triggered, they have cron-job syntax.
@@ -87,5 +82,11 @@ at `PRA_HOME`:
 ln scheduler/dags/platform_dag.py $AIRFLOW_HOME/dags/platform_dag.py
 ln scheduler/dags/project_process_dag.py $AIRFLOW_HOME/dags/project_process_dag.py
 ```
+
+Initialize Airflow:
+```
+airflow db init
+```
+
 
 ## Step 6: Superset UI
