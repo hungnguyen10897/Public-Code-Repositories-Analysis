@@ -5,7 +5,6 @@ from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.linalg import DenseVector, SparseVector
 from pyspark.sql.functions import udf
 from pyspark.sql.types import Row, StringType
-
 from pathlib import Path
 from collections import OrderedDict
 

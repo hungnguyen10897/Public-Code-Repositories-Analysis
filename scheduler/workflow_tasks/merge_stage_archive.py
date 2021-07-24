@@ -1,10 +1,12 @@
-import sys, os
+import sys, os, argparse
 import pandas as pd
 from pathlib import Path
-import sys, argparse
 
-from .workflow_utils import iter_data_directory
-from ...utils import PRA_HOME
+assert "PRA_HOME" in os.environ
+assert os.environ["PRA_HOME"] in sys.path
+
+from scheduler.workflow_tasks.workflow_utils import iter_data_directory
+from utils import PRA_HOME
 
 def merge(data_dir=f'{PRA_HOME}/data'):
 

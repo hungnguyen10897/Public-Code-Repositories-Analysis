@@ -10,7 +10,6 @@ from spark_utils import *
 from pyspark.ml.stat import ChiSquareTest
 from pyspark.ml.feature import ChiSqSelector
 from pyspark.ml.classification import DecisionTreeClassifier,  RandomForestClassifier
-
 from model_3 import prepare_data_ml3
 
 conf = SparkConf().setMaster('local[*]')

@@ -1,9 +1,12 @@
-import sys, argparse, psycopg2
+import os, sys, argparse, psycopg2
 from pathlib import Path
 
-from ...utils import PRA_HOME, CONNECTION_OBJECT
-from ...extractors.jenkins import fetch_jenkins_data
-from ...extractors.sonarqube.sonar_src import fetch_organization_sonar_data
+assert "PRA_HOME" in os.environ
+assert os.environ["PRA_HOME"] in sys.path
+
+from utils import PRA_HOME, CONNECTION_OBJECT
+from extractors.jenkins import fetch_jenkins_data
+from extractors.sonarqube.sonar_src import fetch_organization_sonar_data
 
 def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PRA_HOME}/data"):
     try:
@@ -44,7 +47,6 @@ def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PRA_HOME}/d
             cursor.close()
             conn.close()
     
-
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Script to fetch new data from Jenkins and Sonarcli.")

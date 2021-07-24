@@ -1,9 +1,12 @@
 import pandas as pd
-import  argparse
+import os, sys, argparse
 from sqlalchemy import create_engine
 
-from .workflow_utils import *
-from ...utils import PRA_HOME
+assert "PRA_HOME" in os.environ
+assert os.environ["PRA_HOME"] in sys.path
+
+from scheduler.workflow_tasks.workflow_utils import *
+from utils import PRA_HOME
 
 def load(data_dir=f'{PRA_HOME}/data', conn_str=CONNECTION_STR, all=False):
 

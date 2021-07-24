@@ -1,8 +1,10 @@
-import sys, os
+import sys, os, configparser
 from pathlib import Path
-import configparser
 
-from ...utils import CONNECTION_OBJECT
+assert "PRA_HOME" in os.environ
+assert os.environ["PRA_HOME"] in sys.path
+
+from utils import CONNECTION_OBJECT
 
 JENKINS_BUILD_DTYPE = {
     "server" : "object",

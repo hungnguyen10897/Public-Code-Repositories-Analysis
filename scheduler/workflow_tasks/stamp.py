@@ -3,8 +3,12 @@ This script marks column [processed] of all rows of the following tables as 'TRU
 sonar_issues, sonar_measures
 """
 
-import psycopg2
-from ...utils import CONNECTION_OBJECT
+import os, sys, psycopg2
+
+assert "PRA_HOME" in os.environ
+assert os.environ["PRA_HOME"] in sys.path
+
+from utils import CONNECTION_OBJECT
 
 def run(connection_object = CONNECTION_OBJECT):
     try:

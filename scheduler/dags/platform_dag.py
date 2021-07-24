@@ -2,14 +2,13 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from datetime import datetime, timedelta
-
-# Has to be done this way since this file will be located at: AIRFLOW_HOME/dags directory
 import os, sys
-if "PRA_HOME" not in os.environ:
-    print("Please set environment variable PRA_HOME before running.")
-    sys.exit(1)
 
+assert "PRA_HOME" in os.environ
+
+# Entry of the whole workflow => Prepend project path(PRA_HOME) into sys.path
 sys.path.insert(1, os.environ["PRA_HOME"])
+
 from utils import PRA_HOME, AIRFLOW_CONFIG
 from scheduler.workflow_tasks import fetch_data, load_to_db, merge_stage_archive, stamp
 

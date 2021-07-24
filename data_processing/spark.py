@@ -3,7 +3,6 @@
 
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession
-
 from pathlib import Path
 import time, argparse
 

@@ -1,8 +1,11 @@
-import psycopg2
+import sys, os, psycopg2
 from collections import OrderedDict
 from pyspark.sql.types import *
 
-from ..utils import CONNECTION_OBJECT
+assert "PRA_HOME" in os.environ
+assert os.environ["PRA_HOME"] in sys.path
+
+from utils import CONNECTION_OBJECT
 
 CONNECTION_STR = f"jdbc:postgresql://{CONNECTION_OBJECT['host']}/{CONNECTION_OBJECT['database']}"
 CONNECTION_PROPERTIES = {"user": f"{CONNECTION_OBJECT['user']}", "password": f"{CONNECTION_OBJECT['password']}"}

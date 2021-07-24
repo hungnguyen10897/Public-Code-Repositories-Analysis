@@ -7,6 +7,7 @@ if "PRA_HOME" not in os.environ:
     sys.exit(1)
 
 PRA_HOME = os.environ['PRA_HOME']
+sys.path.insert(1, PRA_HOME)
 
 config = configparser.ConfigParser()
 config.read(Path(PRA_HOME).joinpath("config.cfg"))
