@@ -51,14 +51,14 @@ pip install -r requirements.txt
 ## Step 5: Airflow Pipelines
 
 ### 5a: Installing Apache Airflow
-**Note**: You can skip this part if you use your own Airflow installation
+**Note**: You can skip this part if you use your own Airflow installation, this guide uses Apache Airflow 1.10.11
 
 Make sure you are using Python 3 and corresponding `pip`
 
 ```
 export AIRFLOW_HOME=[YOUR_AIRFLOW_HOME]
 python -m pip install -U pip
-pip install apache-airflow
+pip install apache-airflow==1.10.11
 ```
 
 Change some Airflow configurations, in file `$AIRFLOW_HOME/airflow.cfg` find and change the following configurations:
@@ -75,17 +75,17 @@ load_examples = False
 
 Change `config.cfg` file, espescially the `start_date` config under `[AIRFLOW]`, it should be the date of installation. There should be some more configurations if you want `email_on_failure`, details [here](https://helptechcommunity.wordpress.com/2020/04/04/airflow-email-configuration/). The `_interval` values specify how often the DAGs got triggered, they have cron-job syntax.
 
-After installing airflow, an environment variable `AIRFLOW_HOME` is exported, poiting to the home directory of Airflow. Then we need to bring DAG files (`.py` files) under `scheduler/dags` to `AIRFLOW_HOME/dags` directory by creating 2 hard links
+After installing airflow, an environment variable `AIRFLOW_HOME` is exported, poiting to the home directory of Airflow. Then we need to copy DAG files (`.py` files) under `scheduler/dags` to `AIRFLOW_HOME/dags` directory
 
 at `PRA_HOME`:
 ```
-ln scheduler/dags/platform_dag.py $AIRFLOW_HOME/dags/platform_dag.py
-ln scheduler/dags/project_process_dag.py $AIRFLOW_HOME/dags/project_process_dag.py
+cp scheduler/dags/platform_dag.py $AIRFLOW_HOME/dags/platform_dag.py
+cp scheduler/dags/project_process_dag.py $AIRFLOW_HOME/dags/project_process_dag.py
 ```
 
 Initialize Airflow:
 ```
-airflow db init
+airflow initdb
 ```
 
 
