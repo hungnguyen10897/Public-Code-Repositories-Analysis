@@ -49,7 +49,7 @@ def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PRA_HOME}/d
     
 if __name__ == "__main__":
 
-    ap = argparse.ArgumentParser(description="Script to fetch new data from Jenkins and Sonarcli.")
+    ap = argparse.ArgumentParser(description="Script to fetch new data from Jenkins and Sonarcloud.")
     ap.add_argument("-d","--data-directory", default=f'{PRA_HOME}/data' , help="Path to data directory.")
 
     args = vars(ap.parse_args())

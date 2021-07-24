@@ -51,7 +51,7 @@ t2 = PythonOperator(
 t3 = BashOperator(
     task_id = "spark_processing",
     dag = dag,
-    bash_command = f"cd {PRA_HOME}/spark && spark-submit --driver-class-path postgresql-42.2.12.jar spark.py"
+    bash_command = f"cd {PRA_HOME}/data_processing && spark-submit --driver-class-path postgresql-42.2.12.jar spark.py"
 )
 
 t4_merge = PythonOperator(

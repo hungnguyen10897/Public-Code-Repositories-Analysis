@@ -26,7 +26,7 @@ dag = DAG('project_processing', default_args = default_args, schedule_interval =
 t1 = BashOperator(
     task_id = "project_processing",
     dag = dag,
-    bash_command = f"cd {PRA_HOME}/spark && spark-submit --driver-class-path postgresql-42.2.12.jar spark_project.py"
+    bash_command = f"cd {PRA_HOME}/data_processing && spark-submit --driver-class-path postgresql-42.2.12.jar spark_project.py"
 )
 
 t1
