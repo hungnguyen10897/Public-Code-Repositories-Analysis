@@ -97,7 +97,6 @@ $ cat $AIRFLOW_HOME/airflow-scheduler.pid | xargs kill
 Verify and Start DAGs:
 ```
 $ airflow list_dags
-$ airflow trigger_dag platform
 $ airflow unpause platform
 ```
 
