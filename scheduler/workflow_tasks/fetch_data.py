@@ -5,7 +5,7 @@ assert "PRA_HOME" in os.environ
 assert os.environ["PRA_HOME"] in sys.path
 
 from utils import PRA_HOME, CONNECTION_OBJECT
-from extractors.jenkins import fetch_jenkins_data
+from extractors.jenkins.fetch_jenkins_data import fetch_jenkins_data
 from extractors.sonarqube.sonar_src import fetch_organization_sonar_data
 
 def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PRA_HOME}/data"):
@@ -42,6 +42,7 @@ def run(source, connection_object = CONNECTION_OBJECT, data_dir = f"{PRA_HOME}/d
 
     except (Exception, psycopg2.Error) as error:
         print(f"Error while connectiong to PRA database: {error}")
+        raise error
     finally:
         if(conn):
             cursor.close()
