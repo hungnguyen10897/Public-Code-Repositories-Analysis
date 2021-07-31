@@ -4,10 +4,14 @@
 
 ```
 .
-├── backups                 # Backup files
-├── dags                    # Airflow dags
-├── db                      # Backend database setup
-├── jenkins_data            # Jenkins extrator script
-├── orchestration           # Airflow platform orchestration steps
-└── spark                   # Spark data processing scripts
+├── README.md
+├── config.cfg                  # General Configurations for the project
+├── data_processing             # Spark Data Processing
+├── db                          # Backend database
+├── extractors                  # Extractors of different data sources
+├── installation_guide.md   
+├── requirements.txt            # Python env packages
+├── scheduler                   # Apache Airflow tasks and DAGs
+├── ui                          # Apache Superset exported templates
+└── utils.py                    # Utilities consumed by all other parts
 ```
