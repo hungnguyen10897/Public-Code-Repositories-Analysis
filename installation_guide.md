@@ -106,3 +106,21 @@ $ airflow webserver
 ```
 
 ## Step 6: Superset UI
+This part assumes you have Apache Superset installed. 
+
+First, go to backups/datasources.yaml and change `sqlalchemy_uri` entry. It should have the following structure
+
+```
+postgresql+psycopg2://[USERNAME]:[PASSWORD]@[HOST_ADDRESS]:[PORT]/[DATABASE]
+```
+For example
+```
+postgresql+psycopg2://pra:pra@135.232.51.219:5432/pra
+```
+
+Then import datasources and dashboards, the commands need to be executed in this exact order
+
+```
+superset import_datasources -p backups/datasources.yaml
+superset import-dashboards -p backups/dashboards.json
+```

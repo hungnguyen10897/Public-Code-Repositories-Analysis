@@ -6,6 +6,99 @@ databases:
   sqlalchemy_uri: postgresql+psycopg2://pra:XXXXXXXXXX@130.230.52.209:5432/pra
   tables:
   - columns:
+    - column_name: issue
+      expression: issue
+      type: VARCHAR
+    - column_name: secondary_processing_date
+      is_dttm: true
+      type: DATE
+    - column_name: issue_importance_10
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_1
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_2
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_3
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_4
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_5
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_6
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_7
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_8
+      type: DOUBLE PRECISION
+    - column_name: issue_importance_9
+      type: DOUBLE PRECISION
+    - column_name: issue_10
+      type: VARCHAR
+    - column_name: issue_1
+      type: VARCHAR
+    - column_name: issue_2
+      type: VARCHAR
+    - column_name: issue_3
+      type: VARCHAR
+    - column_name: issue_4
+      type: VARCHAR
+    - column_name: issue_5
+      type: VARCHAR
+    - column_name: issue_6
+      type: VARCHAR
+    - column_name: issue_7
+      type: VARCHAR
+    - column_name: issue_8
+      type: VARCHAR
+    - column_name: issue_9
+      type: VARCHAR
+    - column_name: project
+      type: VARCHAR
+    - column_name: model
+      type: VARCHAR
+    - column_name: input_data_amount
+      type: INTEGER
+    - column_name: processing_date
+    - column_name: organization
+    main_dttm_col: secondary_processing_date
+    metrics:
+    - expression: input_data_amount
+      metric_name: Input data amount
+    - expression: AVG(importance_value)
+      metric_name: importance_value
+    params: '{"remote_id": 46, "database_name": "PRA", "import_time": 1606651393}'
+    schema: public
+    sql: "SELECT organization, project, model, CAST(processing_date AS VARCHAR), processing_date\
+      \  AS secondary_processing_date , input_data_amount, issue_1 as issue, issue_importance_1\
+      \ as importance_value FROM public.top_issues\r\nUNION\r\nSELECT organization,\
+      \ project, model, CAST(processing_date AS VARCHAR), processing_date  AS secondary_processing_date\
+      \ , input_data_amount, issue_2 as issue, issue_importance_2 as importance_value\
+      \ FROM public.top_issues\r\nUNION\r\nSELECT organization, project, model, CAST(processing_date\
+      \ AS VARCHAR), processing_date  AS secondary_processing_date , input_data_amount,\
+      \ issue_3 as issue, issue_importance_3 as importance_value FROM public.top_issues\r\
+      \nUNION\r\nSELECT organization, project, model, CAST(processing_date AS VARCHAR),\
+      \ processing_date  AS secondary_processing_date , input_data_amount, issue_4\
+      \ as issue, issue_importance_4 as importance_value FROM public.top_issues\r\n\
+      UNION\r\nSELECT organization, project, model, CAST(processing_date AS VARCHAR),\
+      \ processing_date  AS secondary_processing_date , input_data_amount, issue_5\
+      \ as issue, issue_importance_5 as importance_value FROM public.top_issues\r\n\
+      UNION\r\nSELECT organization, project, model, CAST(processing_date AS VARCHAR),\
+      \ processing_date  AS secondary_processing_date , input_data_amount, issue_6\
+      \ as issue, issue_importance_6 as importance_value FROM public.top_issues\r\n\
+      UNION\r\nSELECT organization, project, model, CAST(processing_date AS VARCHAR),\
+      \ processing_date  AS secondary_processing_date , input_data_amount, issue_7\
+      \ as issue, issue_importance_7 as importance_value FROM public.top_issues\r\n\
+      UNION\r\nSELECT organization, project, model, CAST(processing_date AS VARCHAR),\
+      \ processing_date  AS secondary_processing_date , input_data_amount, issue_8\
+      \ as issue, issue_importance_8 as importance_value FROM public.top_issues\r\n\
+      UNION\r\nSELECT organization, project, model, CAST(processing_date AS VARCHAR),\
+      \ processing_date  AS secondary_processing_date , input_data_amount, issue_9\
+      \ as issue, issue_importance_9 as importance_value FROM public.top_issues\r\n\
+      UNION\r\nSELECT organization, project, model, CAST(processing_date AS VARCHAR),\
+      \ processing_date  AS secondary_processing_date , input_data_amount, issue_10\
+      \ as issue, issue_importance_10 as importance_value FROM public.top_issues"
+    table_name: top_issues_aggregated
+  - columns:
     - column_name: last_commit_date
       is_dttm: true
       type: TIMESTAMP WITHOUT TIME ZONE
@@ -141,88 +234,6 @@ databases:
     sql: SELECT * FROM sonar_measures
     table_name: sonar_measures_main
   - columns:
-    - column_name: issue
-      expression: issue
-      type: VARCHAR
-    - column_name: processed_date
-      is_dttm: true
-      type: DATE
-    - column_name: issue_importance_10
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_1
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_2
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_3
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_4
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_5
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_6
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_7
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_8
-      type: DOUBLE PRECISION
-    - column_name: issue_importance_9
-      type: DOUBLE PRECISION
-    - column_name: issue_10
-      type: VARCHAR
-    - column_name: issue_1
-      type: VARCHAR
-    - column_name: issue_2
-      type: VARCHAR
-    - column_name: issue_3
-      type: VARCHAR
-    - column_name: issue_4
-      type: VARCHAR
-    - column_name: issue_5
-      type: VARCHAR
-    - column_name: issue_6
-      type: VARCHAR
-    - column_name: issue_7
-      type: VARCHAR
-    - column_name: issue_8
-      type: VARCHAR
-    - column_name: issue_9
-      type: VARCHAR
-    - column_name: project
-      type: VARCHAR
-    - column_name: model
-      type: VARCHAR
-    - column_name: input_data_amount
-      type: INTEGER
-    main_dttm_col: processed_date
-    metrics:
-    - expression: input_data_amount
-      metric_name: Input data amount
-    - expression: AVG(importance_value)
-      metric_name: importance_value
-    params: '{"remote_id": 46, "database_name": "PRA", "import_time": 1606651393}'
-    schema: public
-    sql: "SELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_1 as issue, issue_importance_1 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_2 as issue, issue_importance_2 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_3 as issue, issue_importance_3 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_4 as issue, issue_importance_4 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_5 as issue, issue_importance_5 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_6 as issue, issue_importance_6 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_7 as issue, issue_importance_7 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_8 as issue, issue_importance_8 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_9 as issue, issue_importance_9 as importance_value FROM public.top_issues\r\
-      \nUNION\r\nSELECT project, model, CAST(processed_date AS VARCHAR), input_data_amount,\
-      \ issue_10 as issue, issue_importance_10 as importance_value FROM public.top_issues"
-    table_name: top_issues_aggregated
-  - columns:
     - column_name: feature_importance_10
       type: DOUBLE PRECISION
     - column_name: feature_importance_1
@@ -285,7 +296,6 @@ databases:
       type: INTEGER
     - column_name: importance_value
     - column_name: feature
-    main_dttm_col: prcessed_date
     metrics:
     - expression: COUNT(*)
       metric_name: count
@@ -308,9 +318,6 @@ databases:
       \ FROM public.model_info"
     table_name: model_feature_importance
   - columns:
-    - column_name: prcessed_date
-      is_dttm: true
-      type: DATE
     - column_name: feature_importance_10
       type: DOUBLE PRECISION
     - column_name: feature_importance_1
@@ -369,9 +376,11 @@ databases:
       type: VARCHAR
     - column_name: train_data_amount
       type: INTEGER
+    - column_name: processing_date
+      is_dttm: true
     - column_name: measure
     - column_name: metric
-    main_dttm_col: prcessed_date
+    main_dttm_col: processing_date
     metrics:
     - expression: COUNT(*)
       metric_name: count
@@ -391,9 +400,6 @@ databases:
       \ from model_info"
     table_name: model_train_mesures
   - columns:
-    - column_name: processed_date
-      is_dttm: true
-      type: DATE
     - column_name: f1
       type: DOUBLE PRECISION
     - column_name: predicted_negative_rate
@@ -412,9 +418,11 @@ databases:
       type: VARCHAR
     - column_name: data_amount
       type: INTEGER
+    - column_name: processing_date
+      is_dttm: true
     - column_name: measure
     - column_name: metric
-    main_dttm_col: processed_date
+    main_dttm_col: processing_date
     metrics:
     - expression: COUNT(*)
       metric_name: count
@@ -422,20 +430,20 @@ databases:
       verbose_name: COUNT(*)
     params: '{"remote_id": 33, "database_name": "PRA", "import_time": 1606651393}'
     schema: public
-    sql: "SELECT model, 'f1' as metric, f1 as measure, processed_date FROM public.model_performance\
+    sql: "SELECT model, 'f1' as metric, f1 as measure, processing_date FROM public.model_performance\
       \ \r\nUNION \r\nSELECT model, 'weighted_precision ' as metric, weighted_precision\
-      \  as measure, processed_date FROM public.model_performance \r\nUNION \r\nSELECT\
-      \ model, 'weighted_recall ' as metric, weighted_recall  as measure, processed_date\
+      \  as measure, processing_date FROM public.model_performance \r\nUNION \r\n\
+      SELECT model, 'weighted_recall ' as metric, weighted_recall  as measure, processing_date\
       \ FROM public.model_performance \r\nUNION \r\nSELECT model, 'accuracy ' as metric,\
-      \ accuracy  as measure, processed_date FROM public.model_performance \r\nUNION\
+      \ accuracy  as measure, processing_date FROM public.model_performance \r\nUNION\
       \ \r\nSELECT model, 'area_under_roc ' as metric, area_under_roc  as measure,\
-      \ processed_date FROM public.model_performance \r\nUNION \r\nSELECT model, 'area_under_pr\
-      \ ' as metric, area_under_pr  as measure, processed_date FROM public.model_performance\
-      \ \r\nUNION \r\nSELECT model, 'predicted_negative_rate ' as metric, predicted_negative_rate\
-      \  as measure, processed_date FROM public.model_performance"
+      \ processing_date FROM public.model_performance \r\nUNION \r\nSELECT model,\
+      \ 'area_under_pr ' as metric, area_under_pr  as measure, processing_date FROM\
+      \ public.model_performance \r\nUNION \r\nSELECT model, 'predicted_negative_rate\
+      \ ' as metric, predicted_negative_rate  as measure, processing_date FROM public.model_performance"
     table_name: model_performance_aggregate
   - columns:
-    - column_name: prcessed_date
+    - column_name: processing_date
       is_dttm: true
       type: DATE
     - column_name: feature_importance_10
@@ -496,7 +504,7 @@ databases:
       type: VARCHAR
     - column_name: train_data_amount
       type: INTEGER
-    main_dttm_col: prcessed_date
+    main_dttm_col: processing_date
     metrics:
     - expression: COUNT(*)
       metric_name: count
@@ -507,6 +515,9 @@ databases:
     sql: SELECT * FROM public.model_info
     table_name: model_info_main
   - columns:
+    - column_name: severity
+      expression: CASE WHEN severity IS NULL THEN 'NULL_SEVERITY' ELSE severity END
+      type: TEXT
     - column_name: creation_date
       is_dttm: true
       type: TIMESTAMP WITHOUT TIME ZONE
@@ -516,6 +527,9 @@ databases:
     - column_name: close_date
       is_dttm: true
       type: TIMESTAMP WITHOUT TIME ZONE
+    - column_name: filter_ingested_at
+      expression: CAST(ingested_at AS VARCHAR)
+      type: VARCHAR
     - column_name: debt
       type: BIGINT
     - column_name: effort
@@ -532,15 +546,15 @@ databases:
       type: TEXT
     - column_name: project
       type: TEXT
-    - column_name: severity
-      type: TEXT
     - column_name: resolution
       type: TEXT
     - column_name: rule
       type: TEXT
     - column_name: type
       type: TEXT
-    main_dttm_col: creation_date
+    - column_name: ingested_at
+      is_dttm: true
+    main_dttm_col: ingested_at
     metrics:
     - expression: COUNT(*)
       metric_name: count
@@ -550,9 +564,6 @@ databases:
     sql: SELECT * FROM public.sonar_issues
     table_name: sonar_issues_main
   - columns:
-    - column_name: processed_date
-      is_dttm: true
-      type: DATE
     - column_name: f1
       type: DOUBLE PRECISION
     - column_name: predicted_negative_rate
@@ -571,7 +582,9 @@ databases:
       type: VARCHAR
     - column_name: data_amount
       type: INTEGER
-    main_dttm_col: processed_date
+    - column_name: processing_date
+      is_dttm: true
+    main_dttm_col: processing_date
     metrics:
     - expression: COUNT(*)
       metric_name: count
@@ -628,7 +641,10 @@ databases:
       type: TEXT
     - column_name: revision
       type: TEXT
-    main_dttm_col: date
+    - column_name: ingested_at
+      is_dttm: true
+    - column_name: organization
+    main_dttm_col: ingested_at
     metrics:
     - expression: COUNT(*)
       metric_name: count
