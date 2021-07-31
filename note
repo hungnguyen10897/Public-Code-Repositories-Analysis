@@ -35,6 +35,8 @@ $ airflow scheduler -D
 $ airflow trigger_dag platform
 $ airflow unpause platform
 
+- SSH port forwarding
+$ ssh -L 9999:localhost:8080 130.230.52.210
 
 ## Spark and ML
 - Add

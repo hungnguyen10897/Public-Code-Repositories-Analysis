@@ -20,6 +20,17 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 
 	\c pra
 
+	CREATE TABLE source(
+		id SERIAL,
+ 		sonar_org_key  VARCHAR,
+ 		jenkins_server  VARCHAR,
+ 		batch_number  integer,
+ 		input_date DATE DEFAULT CURRENT_DATE
+	);
+	ALTER TABLE source OWNER TO pra;
+
+	INSERT INTO source (sonar_org_key, jenkins_server, batch_number) VALUES ('apache', 'https://builds.apache.org/', 0);
+
 	CREATE TABLE jenkins_builds(
 		server VARCHAR NOT NULL,
 		job VARCHAR NOT NULL,

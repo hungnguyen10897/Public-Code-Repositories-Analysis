@@ -17,20 +17,20 @@ Clone the repo at: https://github.com/hungnguyen10897/Public-Code-Repositories-A
 There are/will be some parts of this project, e.g the sonarqube extractor, which are developed as separate projects and included as a [git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules). Therefore, after cloning the project repository, we need to initialize all of these submodules:
 
 ```
-git submodule update --init --recursive
+$ git submodule update --init --recursive
 ```
 
 ## Step 2: Environment Varialbes
 
 Export an environment varialbe pointing to the root directory of the repository just cloned in step 1
 ```
-export PRA_HOME=/mnt/pra
+$ export PRA_HOME=/mnt/pra
 ```
 ## Step 3: Backend Database
 
 Start Postgres Backend Database with `docker-compose`. At `PRA_HOME` directory, go to `db` and run
 ```
-docker-compose up -d
+$ docker-compose up -d
 ```
 This creates a container running Postgres, with `airflow`, `superset` and `pra` databases and respective users for each of them. `airflow` and `superset` databases will be used and configured later by Apache Airflow and Apache Superset later. `pra` database is where data of the platform is stored in relevant tables.
 
@@ -45,8 +45,8 @@ The tool is develoepd and run on Python 3.6.9
 
 To install all necessary packages: 
 ```
-python -m pip install -U pip
-pip install -r requirements.txt
+$ python -m pip install -U pip
+$ pip install -r requirements.txt
 ```
 ## Step 5: Airflow Pipelines
 
@@ -56,9 +56,9 @@ pip install -r requirements.txt
 Make sure you are using Python 3 and corresponding `pip`
 
 ```
-export AIRFLOW_HOME=[YOUR_AIRFLOW_HOME]
-python -m pip install -U pip
-pip install apache-airflow==1.10.11
+$ export AIRFLOW_HOME=[YOUR_AIRFLOW_HOME]
+$ python -m pip install -U pip
+$ pip install apache-airflow==1.10.11
 ```
 
 Change some Airflow configurations, in file `$AIRFLOW_HOME/airflow.cfg` find and change the following configurations:
@@ -79,14 +79,31 @@ After installing airflow, an environment variable `AIRFLOW_HOME` is exported, po
 
 at `PRA_HOME`:
 ```
-cp scheduler/dags/platform_dag.py $AIRFLOW_HOME/dags/platform_dag.py
-cp scheduler/dags/project_process_dag.py $AIRFLOW_HOME/dags/project_process_dag.py
+$ cp scheduler/dags/platform_dag.py $AIRFLOW_HOME/dags/platform_dag.py
+$ cp scheduler/dags/project_process_dag.py $AIRFLOW_HOME/dags/project_process_dag.py
 ```
 
 Initialize Airflow:
 ```
-airflow initdb
+$ airflow initdb
+$ airflow scheduler -D
 ```
 
+To stop Airflow Scheduler
+```
+$ cat $AIRFLOW_HOME/airflow-scheduler.pid | xargs kill
+```
+
+Verify and Start DAGs:
+```
+$ airflow list_dags
+$ airflow trigger_dag platform
+$ airflow unpause platform
+```
+
+To start Airflow Webserver (Optional):
+```
+$ airflow webserver
+```
 
 ## Step 6: Superset UI
