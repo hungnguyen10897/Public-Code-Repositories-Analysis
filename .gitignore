@@ -22,5 +22,3 @@ git/**
 
 # Pyenv
 .python-version
-
-config.cfg
