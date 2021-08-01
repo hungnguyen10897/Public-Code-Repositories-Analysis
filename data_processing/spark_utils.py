@@ -3,7 +3,7 @@ from collections import OrderedDict
 from pyspark.sql.types import *
 
 assert "PRA_HOME" in os.environ
-assert os.environ["PRA_HOME"] in sys.path
+sys.path.insert(1, os.environ["PRA_HOME"])
 
 from utils import CONNECTION_OBJECT
 
