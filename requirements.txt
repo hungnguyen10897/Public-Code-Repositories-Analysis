@@ -4,7 +4,7 @@ argcomplete==1.12.0
 asn1crypto==0.24.0
 attrs==19.3.0
 Automat==0.6.0
-Babel==2.8.0
+Babel==2.9.1
 blinker==1.4
 cached-property==1.5.1
 cattrs==1.0.0
