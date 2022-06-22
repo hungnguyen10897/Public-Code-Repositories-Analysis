@@ -63,7 +63,7 @@ marshmallow-sqlalchemy==0.23.1
 multi-key-dict==2.0.3
 natsort==7.0.1
 netifaces==0.10.4
-numpy==1.19.0
+numpy==1.22.0
 oauthlib==2.0.6
 pandas==1.0.5
 pbr==5.4.5
